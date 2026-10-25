@@ -4,6 +4,7 @@
 import type { Activity, AgentInfo, AgentStatus, RoomInfo, ShellJob } from '../../../shared/types';
 import { SPECIAL, type ShellOutcome } from '../../../shared/activity';
 import { hash32 } from '../../../shared/hash';
+import { FACTORY_ACCOUNT_ID } from '../../../shared/workboard/account';
 import { TILE } from '../art/api';
 import type { Camera } from './camera';
 import type { Renderer } from './render/renderer';
@@ -218,7 +219,9 @@ export function createDebug(sim: Sim, renderer: Renderer, camera: Camera, onCame
       }
       const n = ++seq;
       const sessionId = `dbg-sess-${n}`;
-      const account = opts.account ?? [...sim.accounts.keys()][n % Math.max(1, sim.accounts.size)] ?? '.claude';
+      // A conta da fábrica não é deste computador: sessões simuladas ficam nas contas do snapshot.
+      const ids = [...sim.accounts.keys()].filter((id) => id !== FACTORY_ACCOUNT_ID);
+      const account = opts.account ?? ids[n % Math.max(1, ids.length)] ?? '.claude';
       const main = makeAgent({
         id: `dbg:${n}`,
         kind: 'main',

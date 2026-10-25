@@ -2,7 +2,7 @@
 // Converte tudo para coordenadas absolutas e registra spots de forma consistente.
 import { FURNITURE, type Dir, type FloorKind, type FurnitureKind, type WallStyle } from '../../art/api';
 import { FOOT_DX, FOOT_DY, TILE } from '../constants';
-import type { AreaKind, AreaLayout, Doorway, FurniturePlacement, SpotDef, SpotKind, TileRect } from './types';
+import type { AreaKind, AreaLayout, Doorway, FurniturePlacement, RugPatch, SpotDef, SpotKind, TileRect } from './types';
 
 /** Pés de quem está sentado: px acima da base do assento. */
 export const SEAT_FOOT_DY = 3;
@@ -55,8 +55,8 @@ export class AreaBuilder {
     return this;
   }
 
-  rug(lx: number, ly: number, w: number, h: number, color: string, seed: number): this {
-    this.area.rugs.push({ x: Math.round(this.px(lx)), y: Math.round(this.py(ly)), w: Math.round(w * TILE), h: Math.round(h * TILE), color, seed });
+  rug(lx: number, ly: number, w: number, h: number, color: string, seed: number, kind?: RugPatch['kind']): this {
+    this.area.rugs.push({ x: Math.round(this.px(lx)), y: Math.round(this.py(ly)), w: Math.round(w * TILE), h: Math.round(h * TILE), color, seed, ...(kind ? { kind } : {}) });
     return this;
   }
 

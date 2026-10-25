@@ -6,6 +6,7 @@ import { WORDMARK } from './icons';
 import { shellDoneKind, shellLine, shellStage, statusLabel, type ShellWait } from './model';
 import { accountChipLabel, accountProvider, fallbackShort, showsProviderTag } from './provider';
 import { tr } from '../../../shared/i18n';
+import { findAccount } from '../../../shared/workboard/account';
 
 /**
  * Chip quadrado com a letra curta da conta ("C", "D") na cor da conta. Conta do Codex: o chip fica vazado (fundo
@@ -16,7 +17,8 @@ export function createAccountChip(size: 'sm' | 'md' | 'lg' = 'sm'): HTMLElement 
 }
 
 /** `provider` = dica para quando a conta não está no snapshot (ex.: a sessão do histórico diz de que ferramenta é). */
-export function updateAccountChip(chip: HTMLElement, account: AccountInfo | undefined, fallbackId = '', provider?: Provider): void {
+export function updateAccountChip(chip: HTMLElement, found: AccountInfo | undefined, fallbackId = '', provider?: Provider): void {
+  const account = found ?? findAccount(undefined, fallbackId);
   const p = accountProvider(account, fallbackId, provider);
   setText(chip, account?.short ?? fallbackShort(fallbackId, p));
   setStyleVar(chip, '--acc', account?.color ?? '#8b98b3');

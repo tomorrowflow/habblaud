@@ -21,6 +21,9 @@ import { hash32, mulberry32 } from '../hash';
 import { describeMessage, MESSAGE_TOOL } from '../messages';
 import { pickName } from '../names';
 import { demoGitHubEvent } from './github';
+import { FACTORY_ACCOUNT_ID } from '../workboard/account';
+import { FactoryDemo } from '../workboard/demo';
+import type { FactoryProjection } from '../workboard/project';
 import { demoCodexPermission, demoPermission, type DemoPermissionKind } from './permission';
 import { tr } from '../i18n';
 
@@ -205,6 +208,8 @@ export interface DemoOptions {
   idPrefix?: string;
   /** Conta do Codex sempre "sem cota" (capturas de tela e testes); sem isso, ela fica sem cota só de vez em quando. */
   codexNoQuota?: boolean;
+  /** Junta a fábrica do Workboard (shared/workboard) ao escritório: salas e personagens à parte, que avançam um quadro a cada ~20 s. */
+  factory?: boolean;
 }
 
 const SLOT_COOLDOWN_MS = 30_000;
@@ -249,6 +254,10 @@ export class DemoSimulator {
   private codexReadNoQuota: boolean;
   /** Sessões principais abertas até agora (a 2ª da abertura é a do Codex dividindo a sala da 1ª). */
   private mainsSpawned = 0;
+  /** Fábrica do Workboard (opção `factory`): a última projeção e as vagas das suas salas. */
+  private factory?: FactoryDemo;
+  private factoryView: FactoryProjection = { rooms: [], agents: [] };
+  private factorySlots = new Map<string, number>();
 
   constructor(opts: DemoOptions = {}, now = Date.now()) {
     this.rng = mulberry32(opts.seed ?? hash32(String(now)));
@@ -294,6 +303,10 @@ export class DemoSimulator {
     const first = [...this.agents.values()].find((a) => a.info.kind === 'main');
     if (first) this.startBackgroundShells(first, now, true);
     this.nextSpawnAt = now + this.ms(20_000, 40_000);
+    if (opts.factory) {
+      this.factory = new FactoryDemo({ idPrefix: this.prefix || 'demo:', account: FACTORY_ACCOUNT_ID, speed: this.speed }, now);
+      this.syncFactory(now);
+    }
     // Descarta o feed/avisos de abertura.
     this.pendingFeed = [];
     this.pendingNotices = [];
@@ -336,6 +349,7 @@ export class DemoSimulator {
       this.gitHubEvent(now);
     }
     if (this.effects.prune(now)) this.dirty = true;
+    if (this.syncFactory(now)) this.dirty = true;
     this.gc(now);
     const changed = this.dirty;
     if (changed) this.rev++;
@@ -351,11 +365,14 @@ export class DemoSimulator {
     return {
       rev: this.rev,
       serverTime: now,
-      rooms: [...this.rooms.values()].map((r) => {
-        const effect = this.effects.get(r.id, now);
-        return effect ? { ...r, effect: { ...effect } } : { ...r };
-      }),
-      agents: [...this.agents.values()].map((a) => structuredCloneAgent(a.info)),
+      rooms: [
+        ...[...this.rooms.values()].map((r) => {
+          const effect = this.effects.get(r.id, now);
+          return effect ? { ...r, effect: { ...effect } } : { ...r };
+        }),
+        ...this.factoryView.rooms.map((r) => ({ ...r, slot: this.factorySlots.get(r.id)! })),
+      ],
+      agents: [...[...this.agents.values()].map((a) => structuredCloneAgent(a.info)), ...this.factoryView.agents.map(structuredCloneAgent)],
       accounts: [
         ...this.accounts.map((acc) => {
           const u = this.usage.get(acc.id)!;
@@ -498,17 +515,38 @@ export class DemoSimulator {
   }
 
   private usedNames(): Set<string> {
-    return new Set([...this.agents.values()].map((a) => a.info.name));
+    return new Set([...[...this.agents.values()].map((a) => a.info.name), ...this.factoryView.agents.map((a) => a.name)]);
+  }
+
+  /** Avança a fábrica e reparte as vagas das suas salas (que entram e saem com o roteiro). true = o snapshot mudou. */
+  private syncFactory(now: number): boolean {
+    if (!this.factory) return false;
+    const { view, changed } = this.factory.tick(now, new Set([...this.agents.values()].map((a) => a.info.name)));
+    if (!changed) return false;
+    const ids = new Set(view.rooms.map((r) => r.id));
+    for (const [id, slot] of this.factorySlots) {
+      if (ids.has(id)) continue;
+      this.factorySlots.delete(id);
+      this.slotFreedAt.set(slot, now);
+    }
+    for (const r of view.rooms) if (!this.factorySlots.has(r.id)) this.factorySlots.set(r.id, this.takeSlot(now));
+    this.factoryView = view;
+    return true;
+  }
+
+  /** Primeira vaga livre, sem contar as que acabaram de ser liberadas. */
+  private takeSlot(now: number): number {
+    const used = new Set([...[...this.rooms.values()].map((r) => r.slot), ...this.factorySlots.values()]);
+    let slot = 0;
+    while (used.has(slot) || now - (this.slotFreedAt.get(slot) ?? -Infinity) < SLOT_COOLDOWN_MS) slot++;
+    return slot;
   }
 
   private ensureRoom(project: DemoProject, now: number): RoomInfo {
     const id = `${this.prefix}${ROOT}/${project.name}`;
     const existing = this.rooms.get(id);
     if (existing) return existing;
-    const used = new Set([...this.rooms.values()].map((r) => r.slot));
-    let slot = 0;
-    while (used.has(slot) || now - (this.slotFreedAt.get(slot) ?? -Infinity) < SLOT_COOLDOWN_MS) slot++;
-    const room: RoomInfo = { id, name: project.name, path: `${ROOT}/${project.name}`, slot, seed: hash32(id), createdAt: now };
+    const room: RoomInfo = { id, name: project.name, path: `${ROOT}/${project.name}`, slot: this.takeSlot(now), seed: hash32(id), createdAt: now };
     this.rooms.set(id, room);
     this.notice(now, 'info', tr('🏗️ Nova sala: {0}', [project.name]), undefined, id);
     this.dirty = true;

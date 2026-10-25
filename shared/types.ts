@@ -17,6 +17,9 @@ export type AgentKind = 'main' | 'sub';
  */
 export type Provider = 'claude' | 'codex';
 
+/** Papel de um personagem da fábrica (Workboard do OpenClaw) no cartão: quem constrói, quem verifica, quem faz o grill. */
+export type FactoryRole = 'builder' | 'verifier' | 'grill';
+
 /**
  * Estado de alto nível de um agente — é o que dirige o comportamento do personagem.
  * - working: processando um turno (ocupado). Fica na mesa digitando.
@@ -186,6 +189,8 @@ export interface AgentInfo {
    * e perguntou pela caixa de entrada há pouco. Ver POST /api/messages.
    */
   canMessage?: boolean;
+  /** Presente nos personagens da fábrica (Workboard): o quadro, o cartão e o papel. `provider` continua sendo a ferramenta. */
+  factory?: { boardId: string; cardId: string; role: FactoryRole };
 }
 
 export interface RoomInfo {
@@ -207,6 +212,11 @@ export interface RoomInfo {
   createdAt: number;
   /** Efeito visual temporário na sala (eventos do GitHub detectados nos transcripts; ver shared/github.ts). */
   effect?: RoomEffect;
+  /**
+   * Presente nas salas da fábrica (um quadro do Workboard): `queued` = cartões na fila, que não têm personagem;
+   * `trust` = aceitos na semana e quantos deles sem toque humano (a placa "N de M autônomos"), só com algum aceito.
+   */
+  factory?: { boardId: string; queued: number; trust?: { autonomous: number; accepted: number } };
 }
 
 /**
@@ -375,6 +385,11 @@ export interface OfficeSnapshot {
      * e à linha do tempo). Ausente nos testes e no timelapse.
      */
     world?: WorldMeta;
+    /**
+     * Control UI do OpenClaw (HABBLAUD_WORKBOARD_UI_URL, sem barra no fim): base do link "Abrir cartão" dos
+     * personagens da fábrica (shared/workboard/links.ts). Ausente = sem o link.
+     */
+    workboardUi?: string;
   };
 }
 

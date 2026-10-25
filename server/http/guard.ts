@@ -7,6 +7,9 @@
 // 2) CSRF: requisições que mudam estado (POST) exigem `Content-Type: application/json` — o que um
 //    formulário ou um fetch "simples" de outro site não consegue enviar sem preflight de CORS, que
 //    este servidor nunca autoriza — e, quando há `Origin`, ele precisa ser da mesma origem ou local.
+// 3) Modo portal (HABBLAUD_PORTAL=1): atrás do proxy do Portal do OpenClaw o `Host` chega reescrito para
+//    `localhost:<porta>` e o endereço público vem em `X-Forwarded-Host`/`X-Forwarded-Proto` (o proxy apaga os
+//    `X-Forwarded-*` que o cliente mandou). Aí o `Origin` do navegador é o do portal, não o do Host.
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
 import { tr } from '../../shared/i18n';
@@ -87,6 +90,34 @@ export function originAllowed(origin: string | undefined, host: string | undefin
   return !!name && (isLoopbackName(name) || allowed.has(name));
 }
 
+/**
+ * Pedido que passou pelo proxy do Portal do OpenClaw: tem `X-Forwarded-Host`. O proxy sempre o define (e apaga o que o
+ * cliente mandou); um cliente local que fala direto com o Habblaud (hooks do Codex, curl) não o manda.
+ */
+export function isForwarded(req: IncomingMessage): boolean {
+  return req.headers['x-forwarded-host'] !== undefined;
+}
+
+/**
+ * Origem pública do portal (`<proto>://<host[:porta]>`, minúscula) a partir de `X-Forwarded-Proto` e `X-Forwarded-Host`,
+ * ou undefined se faltar, vier repetido ou for inválido.
+ */
+export function forwardedOrigin(headers: IncomingMessage['headers']): string | undefined {
+  const proto = headers['x-forwarded-proto'];
+  const host = headers['x-forwarded-host'];
+  if (typeof proto !== 'string' || typeof host !== 'string') return undefined;
+  const p = proto.trim().toLowerCase();
+  if ((p !== 'http' && p !== 'https') || !hostnameOf(host)) return undefined;
+  return `${p}://${host.trim().toLowerCase()}`;
+}
+
+/** `Host` local com porta (`localhost:<porta>`, 127.x ou `[::1]`), como o proxy do portal o reescreve; `port` confere a porta. */
+function isPortalUpstreamHost(host: string | undefined, port: number | undefined): boolean {
+  if (!host || !isLoopbackHost(host)) return false;
+  const m = /:(\d{1,5})$/.exec(host.trim());
+  return !!m && (port === undefined || Number(m[1]) === port);
+}
+
 export function isJsonContentType(value: string | undefined): boolean {
   return !!value && /^application\/json\s*(;|$)/i.test(value.trim());
 }
@@ -105,6 +136,10 @@ function reject(res: ServerResponse, status: number, message: string): void {
 export interface GuardOptions {
   /** Nomes extras aceitos no Host/Origin (HABBLAUD_ALLOWED_HOSTS). */
   allowedHosts?: ReadonlySet<string>;
+  /** Modo portal (HABBLAUD_PORTAL=1): aceita pedidos do proxy do Portal do OpenClaw (ver o item 3 acima). */
+  portal?: boolean;
+  /** Porta em que o servidor escuta; no modo portal, o `Host` reescrito pelo proxy precisa trazê-la. */
+  port?: number;
 }
 
 /**
@@ -115,6 +150,7 @@ export function createRequestGuard(opts: GuardOptions = {}): (req: IncomingMessa
   const allowed = opts.allowedHosts ?? new Set<string>();
   return (req, res) => {
     const host = req.headers.host;
+    if (opts.portal && isForwarded(req)) return guardPortal(req, res, opts.port);
     if (!hostAllowed(host, allowed)) {
       reject(
         res,
@@ -138,4 +174,37 @@ export function createRequestGuard(opts: GuardOptions = {}): (req: IncomingMessa
     }
     return false;
   };
+}
+
+/**
+ * Pedido do proxy do Portal: o `Host` tem de ser o local reescrito por ele, e o `Origin` (se houver, em qualquer método)
+ * tem de ser exatamente a origem pública que ele declara. Um site que aponte o próprio domínio para a máquina não passa
+ * pelo proxy, e uma página não consegue mandar `X-Forwarded-Host` sem um preflight de CORS, que este servidor nunca
+ * autoriza. Na API, `Sec-Fetch-Site` de outro site é recusado (as chamadas da página são da mesma origem).
+ */
+function guardPortal(req: IncomingMessage, res: ServerResponse, port: number | undefined): boolean {
+  const method = req.method ?? 'GET';
+  const publicOrigin = forwardedOrigin(req.headers);
+  if (!isPortalUpstreamHost(req.headers.host, port) || !publicOrigin) {
+    reject(res, 403, tr('Pedido do portal inválido: o proxy precisa mandar Host local, X-Forwarded-Host e X-Forwarded-Proto.'));
+    return true;
+  }
+  const origin = req.headers.origin;
+  if (origin !== undefined && (typeof origin !== 'string' || origin.trim().toLowerCase() !== publicOrigin)) {
+    reject(res, 403, tr('Origem não permitida.'));
+    return true;
+  }
+  const path = (req.url ?? '/').split('?')[0];
+  if (path.startsWith('/api/')) {
+    const site = req.headers['sec-fetch-site'];
+    if (site !== undefined && site !== 'same-origin' && site !== 'none') {
+      reject(res, 403, tr('Origem não permitida.'));
+      return true;
+    }
+    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' && !isJsonContentType(req.headers['content-type'])) {
+      reject(res, 415, tr('Envie o corpo como JSON (Content-Type: application/json).'));
+      return true;
+    }
+  }
+  return false;
 }

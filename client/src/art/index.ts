@@ -30,7 +30,7 @@ import { normalizeFurniture, renderFurniture } from './furniture/index';
 import { renderIcon } from './icons';
 import { CHUNK_PX, floorChunk } from './surfaces/floor';
 import { WALL_CAP_H, WALL_FACE_H, capColor, southWallTile, wallFaceTile } from './surfaces/walls';
-import { renderRug } from './surfaces/rug';
+import { renderHazard, renderRug } from './surfaces/rug';
 import { roomTheme as roomThemePure } from './theme';
 
 export * from './api';
@@ -191,11 +191,11 @@ export function drawFloor(
   }
 }
 
-export function drawRug(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, seed: number): void {
+export function drawRug(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, seed: number, kind?: 'hazard'): void {
   const rw = Math.max(4, Math.round(w));
   const rh = Math.max(4, Math.round(h));
-  const key = `${rw}|${rh}|${color}|${seed}`;
-  const c = rugCache.get(key, () => toCanvas(renderRug(rw, rh, color, seed)));
+  const key = `${rw}|${rh}|${kind === 'hazard' ? 'hazard' : color}|${seed}`;
+  const c = rugCache.get(key, () => toCanvas(kind === 'hazard' ? renderHazard(rw, rh, seed) : renderRug(rw, rh, color, seed)));
   ctx.drawImage(c, Math.round(x), Math.round(y));
 }
 

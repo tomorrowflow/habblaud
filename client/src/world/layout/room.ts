@@ -5,7 +5,8 @@
 //   linha 11    parede sul (salas ao norte: com a porta para o corredor)
 //
 // Ilha de 6 lugares face a face (3 desk ao sul, de costas para a câmera; 3 desk_back ao norte,
-// de frente), quadro kanban, placa com o nome e decoração. Para as salas não ficarem idênticas,
+// de frente), quadro kanban, placa com o nome e decoração. Sala da fábrica (um quadro do Workboard): chão de cimento,
+// paredes de tijolo, faixa zebrada em volta da ilha e as placas da fila e da autonomia no lugar do relógio e do pôster. Para as salas não ficarem idênticas,
 // a semente da sala escolhe: o lado da ilha (layout espelhado), o tipo de canto de reunião
 // (mesa retangular, mesinhas redondas ou recanto com poltronas), os "cantos" da parte de baixo
 // (descanso, impressão, verde, mesa de pé) e a coluna de apoio junto à parede.
@@ -20,6 +21,8 @@ export interface RoomInput {
   id: string;
   slot: number;
   seed: number;
+  /** Sala da fábrica (RoomInfo.factory presente). */
+  factory?: boolean;
 }
 
 const PLANTS_TALL = ['palm', 'ficus', 'monstera', 'bonsai'] as const;
@@ -75,7 +78,8 @@ export function layoutProjectRoom(room: RoomInput, theme: RoomTheme): AreaLayout
   const b = new AreaBuilder(room.id, 'room', rect);
   const area = b.area;
   area.side = side;
-  const wall: WallStyle = theme.wall;
+  const factory = !!room.factory;
+  const wall: WallStyle = factory ? { ...theme.wall, pattern: 'brick' } : theme.wall;
   const north = side === 'north';
   const door = { lx: DOOR_X, w: DOOR_W };
 
@@ -91,13 +95,15 @@ export function layoutProjectRoom(room: RoomInput, theme: RoomTheme): AreaLayout
   const seat = (kind: SpotKind, fk: FurnitureKind, lx: number, ly: number, dir: Dir, variant?: string, o: SpotOpts & { order?: number } = {}, dirVariant = false): SpotDef =>
     b.seat(kind, fk, fx(lx), ly, fdir(dir), dirVariant ? fdir(dir) : variant, { ...o, dx: fdx(o.dx) });
   const wallItem = (kind: FurnitureKind, cx: number, variant?: string, o: { ly?: number; on?: 'face' | 'south'; order?: number } = {}) => b.wall(kind, mir ? 16 - cx : cx, variant, o);
-  const rug = (lx: number, ly: number, w: number, h: number, color: string, seed: number) => b.rug(fx(lx, w), ly, w, h, color, seed);
+  const rug = (lx: number, ly: number, w: number, h: number, color: string, seed: number, kind?: 'hazard') => b.rug(fx(lx, w), ly, w, h, color, seed, kind);
+  /** Centro (px de mundo) de um item de parede na coluna local `lcx`, já espelhado. */
+  const wallX = (lcx: number) => Math.round(b.px(mir ? 16 - lcx : lcx));
 
-  // ---- piso: porcelanato claro (o banheiro é que usa azulejo); leve tom do tema dá identidade
-  b.floor('marble', 0, 0, 16, 12, room.seed);
+  // ---- piso: porcelanato claro (o banheiro é que usa azulejo); leve tom do tema dá identidade. Fábrica: cimento.
+  b.floor(factory ? 'concrete' : 'marble', 0, 0, 16, 12, room.seed);
   area.floorTint = theme.carpet;
-  // tapete na cor do tema sob a ilha (identidade da sala)
-  rug(1.5, 3.25, 7, 5.5, theme.carpet, room.seed);
+  // tapete na cor do tema sob a ilha (identidade da sala); na fábrica, a faixa zebrada da área de trabalho
+  rug(1.5, 3.25, 7, 5.5, theme.carpet, room.seed, factory ? 'hazard' : undefined);
   // tapetinho na entrada
   rug(DOOR_X - 0.25, north ? 9.5 : 2, DOOR_W + 0.5, 1.25, shade(theme.carpet2, -0.1), room.seed + 1);
 
@@ -122,19 +128,27 @@ export function layoutProjectRoom(room: RoomInput, theme: RoomTheme): AreaLayout
   // ---- itens de parede
   const signCx = north ? 8 : 10.5;
   area.signId = wallItem('sign', signCx, undefined, { order: 0.95 });
+  // A sorte do pôster é tirada sempre, para o resto da sala sair igual com ou sem a fábrica.
+  const posterV = pick(POSTERS);
+  if (factory) area.factory = { queue: { cx: wallX(signCx), baseY: b.py(2) }, trust: { cx: wallX(north ? 10.75 : 13.3), baseY: b.py(2) } };
   if (north) {
     wallItem('whiteboard', 4.5, undefined, { order: 0.6 });
-    wallItem('clock', 10, undefined, { order: 0.7 });
-    wallItem('poster', 11.1, pick(POSTERS), { order: 0.5 });
-    wallItem('window', 12.75, undefined, { order: 0.4 });
+    if (!factory) {
+      wallItem('clock', 10, undefined, { order: 0.7 });
+      wallItem('poster', 11.1, posterV, { order: 0.5 });
+    }
+    // na fábrica a janela chega um pouco para a direita (sem a planta do canto) para caber o quadrinho
+    wallItem('window', factory ? 13.1 : 12.75, undefined, { order: 0.4 });
     // interruptor ao lado da porta, na mureta (por dentro)
     wallItem('light_switch', DOOR_X - 0.5, 'on', { ly: 12, on: 'south', order: 0.8 });
     spot('switch', DOOR_X - 1, 10, 'down', { dy: -1 });
   } else {
     wallItem('whiteboard', 2.5, undefined, { order: 0.6 });
     wallItem('light_switch', DOOR_X - 0.5, 'on', { order: 0.8 });
-    wallItem('clock', 12.3, undefined, { order: 0.7 });
-    wallItem('poster', 13.35, pick(POSTERS), { order: 0.5 });
+    if (!factory) {
+      wallItem('clock', 12.3, undefined, { order: 0.7 });
+      wallItem('poster', 13.35, posterV, { order: 0.5 });
+    }
     spot('switch', DOOR_X - 1, 2, 'up', { dy: -3 });
   }
   spot('whiteboard', north ? 4 : 2, 2, 'up', { dx: 8, dy: 2 });
@@ -184,7 +198,8 @@ export function layoutProjectRoom(room: RoomInput, theme: RoomTheme): AreaLayout
   const shelfX = north ? 1 : 4;
   furn('bookshelf', shelfX, 2, undefined, { order: 0.25 });
   spot('shelf', shelfX, 3, 'up', { dx: 8, dy: -2 });
-  furn('plant_tall', 14, 2, tall, { order: 0.2 });
+  // na fábrica a planta do canto cobriria a placa da autonomia (salas ao sul)
+  if (!factory) furn('plant_tall', 14, 2, tall, { order: 0.2 });
   if (north) spot('window', 12, 2, 'up', { dx: 12, dy: 1 });
   else furn('plant_small', 1, 2, pick(PLANTS_SMALL), { order: 0.22 });
   const column = Math.floor(rng() * 3);

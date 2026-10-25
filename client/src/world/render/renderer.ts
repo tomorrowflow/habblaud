@@ -21,6 +21,7 @@ import { Lighting } from './lighting';
 import { Particles } from './particles';
 import { carSprite, propSprite, shadowSprite } from './props';
 import { countBadge, fallbackIcon } from './shell-sprites';
+import { queueTag, trustBoard } from './factory-signs';
 import { decorateElevator, drawSeasonalLights, drawSeasonalWindow, seasonalCostume, seasonalFurniture } from './seasonal';
 import { buildAreaVis, furnitureSprites, opaqueBounds, paintShell, toWallVis, WALL_MARGIN, wallItemOrigin, wallSprites, type AreaVis, type FurnVis, type WallVis } from './scene';
 
@@ -578,7 +579,25 @@ export class Renderer {
       const slide = Math.round((1 - anim.sign) * -18);
       ctx.globalAlpha = anim.sign;
       this.drawSign(vis, vis.sign, slide);
+      this.drawFactorySigns(vis, slide);
       ctx.globalAlpha = 1;
+    }
+  }
+
+  /** Sala da fábrica: a etiqueta da fila (só com fila) e o quadrinho da autonomia (só com cartão aceito na semana). */
+  private drawFactorySigns(vis: AreaVis, slide: number): void {
+    const at = vis.layout.factory;
+    const info = vis.room?.info.factory;
+    if (!at || !info) return;
+    const { ctx } = this;
+    if (info.trust) {
+      const s = trustBoard(info.trust.autonomous, info.trust.accepted);
+      ctx.drawImage(s.canvas, at.trust.cx - s.ax, at.trust.baseY - s.ay + slide);
+    }
+    if (info.queued > 0) {
+      const s = queueTag(info.queued);
+      // pendurada no pé da placa com o nome (art/furniture/wall.ts, sign: y = -28, altura 11)
+      ctx.drawImage(s.canvas, at.queue.cx - s.ax, at.queue.baseY - 17 + slide);
     }
   }
 

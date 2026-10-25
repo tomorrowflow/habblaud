@@ -1,4 +1,5 @@
-// Tapetes decorativos (puros): borda escura, filete claro, franjas nas pontas e padrão no campo.
+// Tapetes decorativos (puros): borda escura, filete claro, franjas nas pontas e padrão no campo. E a faixa zebrada
+// pintada no chão da fábrica, só a borda (o cimento aparece no meio).
 import { ramp, shade } from '../core/color';
 import { PixelBuf } from '../core/pixbuf';
 
@@ -44,5 +45,25 @@ export function renderRug(w: number, h: number, color: string, seed: number): Pi
   }
   // Cantos arredondados.
   for (const [cx, cy] of [[x0, 0], [x1, 0], [x0, h - 1], [x1, h - 1]] as const) b.clear(cx, cy);
+  return b;
+}
+
+/** Faixa zebrada (amarelo e preto, em diagonal) de 3 px em volta de `w`x`h`, gasta aqui e ali pela semente. */
+export function renderHazard(w: number, h: number, seed: number): PixelBuf {
+  const b = new PixelBuf(w, h);
+  const band = 3;
+  const yellow = ramp('#f2c14e', 0.06);
+  const black = '#2b2f3b';
+  let wear = (seed >>> 0) || 1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (x >= band && x < w - band && y >= band && y < h - band) continue;
+      wear = (Math.imul(wear, 1103515245) + 12345) >>> 0;
+      // tinta gasta: alguns pixels deixam o cimento aparecer
+      if (wear >>> 28 === 0) continue;
+      b.set(x, y, (x + y) % 8 < 4 ? (wear >>> 27 === 1 ? yellow.dk : yellow.base) : black);
+    }
+  }
+  for (const [cx, cy] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]] as const) b.clear(cx, cy);
   return b;
 }

@@ -58,6 +58,29 @@ export interface ServerConfig {
   remoteWarning?: string;
   /** Habblaud World (server/world/): conta, personagem e, nas próximas fases, o prédio no mundo. */
   world: WorldConfig;
+  /**
+   * HABBLAUD_PORTAL=1: o Habblaud roda atrás do Portal do OpenClaw (proxy reverso do Gateway). A instância fica só
+   * leitura (terminal, mensagens, permissões, personagem e World fechados) e a borda aceita o Host reescrito pelo proxy.
+   */
+  portal: boolean;
+  /** Fábrica do OpenClaw (server/workboard/): ligada só com HABBLAUD_WORKBOARD_URL. */
+  workboard?: WorkboardConfig;
+  /** Por que HABBLAUD_WORKBOARD_URL foi recusada (a fábrica fica desligada). */
+  workboardWarning?: string;
+  /**
+   * HABBLAUD_WORKBOARD_UI_URL: endereço da Control UI do OpenClaw (http ou https, sem barra no fim), para o link
+   * "Abrir cartão" da gaveta (OfficeSnapshot.meta.workboardUi). Ausente = sem o link.
+   */
+  workboardUi?: string;
+  /** Por que HABBLAUD_WORKBOARD_UI_URL foi recusada (fica sem o link). */
+  workboardUiWarning?: string;
+}
+
+export interface WorkboardConfig {
+  /** WebSocket do Gateway (`ws://` ou `wss://`, ex.: ws://127.0.0.1:18789). */
+  url: string;
+  /** HABBLAUD_WORKBOARD_TOKEN: o segredo compartilhado do Gateway. Nunca vai para log, snapshot nem navegador. */
+  token?: string;
 }
 
 export interface WorldConfig {
@@ -149,6 +172,8 @@ export function isLoopbackBind(value: string | undefined): boolean {
  * de ligar com a porta exposta.
  */
 export function terminalOffReason(env: NodeJS.ProcessEnv, host: string, inDocker: boolean): string | undefined {
+  // Pelo proxy do portal todo pedido chega do loopback com Host local, mas quem olha é um cliente da rede.
+  if (isTruthy(env.HABBLAUD_PORTAL)) return tr('modo portal (HABBLAUD_PORTAL): a instância é só leitura');
   const flag = env.HABBLAUD_TERMINAL?.trim();
   if (flag && !isTruthy(flag)) return `HABBLAUD_TERMINAL=${flag}`;
   if (inDocker) {
@@ -185,11 +210,12 @@ const LOCAL_WORLD_HOSTS: readonly string[] = ['127.0.0.1', 'host.docker.internal
  * `wss://` (o token do dispositivo nunca anda sem TLS); `http://` e `ws://` só no modo de desenvolvimento e só para
  * 127.0.0.1 ou host.docker.internal (o servidor do mundo rodando no próprio computador, visto de fora ou de dentro do
  * Docker). Nada de caminho, usuário, senha ou parâmetros: só o endereço do servidor. Uma URL definida e recusada não
- * cai no padrão: o recurso fica desligado, com o motivo em `warning`.
+ * cai no padrão: o recurso fica desligado, com o motivo em `warning`. No modo portal (HABBLAUD_PORTAL) o World fica
+ * desligado, como com HABBLAUD_WORLD=0.
  */
 export function parseWorldConfig(env: NodeJS.ProcessEnv, argv: string[]): WorldConfig {
   const flag = env.HABBLAUD_WORLD?.trim();
-  const enabled = !flag || isTruthy(flag);
+  const enabled = (!flag || isTruthy(flag)) && !isTruthy(env.HABBLAUD_PORTAL);
   const dev = argv.includes('--dev') || isTruthy(env.HABBLAUD_WORLD_DEV);
   if (!enabled) return { enabled, dev };
   const raw = env.HABBLAUD_WORLD_URL?.trim();
@@ -222,6 +248,39 @@ export function worldSocketUrl(base: string): string {
   return `${base.replace(/^http/, 'ws').replace(/\/+$/, '')}/v1/socket`;
 }
 
+/** A fábrica do OpenClaw a partir do ambiente: sem HABBLAUD_WORKBOARD_URL, desligada (nada roda). */
+export function parseWorkboardConfig(env: NodeJS.ProcessEnv): { config?: WorkboardConfig; warning?: string } {
+  const raw = env.HABBLAUD_WORKBOARD_URL?.trim();
+  if (!raw) return {};
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return { warning: tr('HABBLAUD_WORKBOARD_URL não é um endereço válido') };
+  }
+  if (u.protocol !== 'ws:' && u.protocol !== 'wss:') return { warning: tr('HABBLAUD_WORKBOARD_URL precisa começar com ws:// ou wss://') };
+  if (u.username || u.password) return { warning: tr('HABBLAUD_WORKBOARD_URL não leva usuário nem senha (o segredo vai em HABBLAUD_WORKBOARD_TOKEN)') };
+  const token = env.HABBLAUD_WORKBOARD_TOKEN?.trim();
+  return { config: { url: u.href, ...(token ? { token } : {}) } };
+}
+
+/** A Control UI do OpenClaw a partir do ambiente: o caminho fica (a UI pode morar num subcaminho); usuário, senha, parâmetros e âncora não. */
+export function parseWorkboardUiUrl(env: NodeJS.ProcessEnv): { url?: string; warning?: string } {
+  const raw = env.HABBLAUD_WORKBOARD_UI_URL?.trim();
+  if (!raw) return {};
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return { warning: tr('HABBLAUD_WORKBOARD_UI_URL não é um endereço válido') };
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return { warning: tr('HABBLAUD_WORKBOARD_UI_URL precisa começar com http:// ou https://') };
+  if (u.username || u.password || u.search || u.hash) {
+    return { warning: tr('HABBLAUD_WORKBOARD_UI_URL deve ter só o endereço da Control UI (sem usuário, senha, parâmetros ou âncora)') };
+  }
+  return { url: `${u.origin}${u.pathname.replace(/\/+$/, '')}` };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] = process.argv): ServerConfig {
   const home = env.HOME || homedir();
   const inDocker = detectDocker(env);
@@ -230,6 +289,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
   const host = env.HABBLAUD_HOST?.trim() || '127.0.0.1';
   const pkg = readPackage(rootDir);
   const remote = parseRemoteConfig(env, inDocker);
+  const workboard = parseWorkboardConfig(env);
+  const workboardUi = parseWorkboardUiUrl(env);
   return {
     port: Number.isFinite(port) && port > 0 && port < 65536 ? port : 4747,
     host,
@@ -252,5 +313,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     remote: remote.config,
     remoteWarning: remote.warning,
     world: parseWorldConfig(env, argv),
+    portal: isTruthy(env.HABBLAUD_PORTAL),
+    workboard: workboard.config,
+    workboardWarning: workboard.warning,
+    workboardUi: workboardUi.url,
+    workboardUiWarning: workboardUi.warning,
   };
 }

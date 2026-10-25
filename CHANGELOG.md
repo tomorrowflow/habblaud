@@ -10,6 +10,35 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+### Adicionado
+
+- **Modo portal para rodar atrás do Portal do OpenClaw.** Com `HABBLAUD_PORTAL=1`, o Habblaud aceita o `Host` e o
+  `Origin` do proxy do Gateway (`X-Forwarded-Host` e `X-Forwarded-Proto`), a instância inteira fica só leitura
+  (terminal, permissões, mensagens, personagem, demo, verificar versão e Novo agente fechados, porque pelo proxy todo
+  pedido chega do próprio computador mesmo vindo de um cliente da rede) e o Habblaud World fica desligado. A página
+  esconde as ações recusadas, `/api/health` traz `portal: true` e as páginas deixam de mandar `X-Frame-Options` para
+  abrir no iframe da Control UI. Desligado por padrão: sem a variável nada muda.
+
+- **Modo demonstração: a fábrica do OpenClaw no escritório.** Com `HABBLAUD_DEMO=1` (ou `?mock=1`), duas salas de
+  “quadros” do Workboard aparecem ao lado do escritório simulado, com um roteiro que se repete a cada ~5 minutos: um
+  personagem por cartão em andamento (trabalhando ou esperando por você, com o estágio e o título no balão), um
+  verificador e um personagem do grill enquanto essas etapas rodam, a contagem de cartões na fila, festa quando um
+  cartão é publicado e alarme quando a verificação reprova. Cartões de teste (`[PROBE:…]`) e concluídos não aparecem. É
+  só demonstração: nada disso sobe ao Habblaud World.
+- **A fábrica do OpenClaw de verdade, ao vivo.** Com `HABBLAUD_WORKBOARD_URL` (e `HABBLAUD_WORKBOARD_TOKEN`), o
+  Habblaud conecta ao Gateway do OpenClaw só para ler e mostra os quadros do Workboard como salas, com os cartões em
+  andamento como personagens, atualizados a cada mudança. Na primeira vez, aprove o dispositivo no Gateway
+  (`openclaw devices approve <requestId>`, o log mostra o pedido); o estado aparece em `/api/health`. Quem espera por
+  você no Workboard entra no resumo do mod do Claude Code. Os agentes da fábrica rodam nas máquinas do Gateway, não
+  neste computador: nunca sobem ao Habblaud World nem contam no Meu dia.
+- **Salas da fábrica com cara de chão de fábrica.** Cada quadro do Workboard vira uma sala de cimento e tijolo, com
+  uma faixa zebrada em volta das mesas, uma etiqueta “N na fila” pendurada embaixo da placa com o nome e um quadrinho
+  “N de M autônomos” (os cartões aceitos na semana sem nenhum toque humano, como no cabeçalho da Factory overview).
+  A gaveta da sala diz o mesmo por extenso. Os personagens da fábrica aparecem com a conta “OpenClaw”.
+- **“Abrir cartão” na gaveta de um personagem da fábrica.** Com `HABBLAUD_WORKBOARD_UI_URL` (o endereço da Control UI
+  do OpenClaw), o botão abre o cartão no Workboard em outra aba, também no modo portal. A gaveta desses personagens é
+  só leitura: sem terminal e sem mensagens.
+
 ## [1.0.3] - 2026-10-16
 
 ### Corrigido

@@ -106,8 +106,12 @@ export class DayStatsService {
     const snap = this.deps.snapshot();
     const realAgents: AgentInfo[] = [];
     const demoAgents: AgentInfo[] = [];
-    // Demo = id e conta com o prefixo do simulador (uma pasta de conta chamada "demo" não vira demo).
-    for (const a of snap.agents) (a.id.startsWith(DEMO_ID_PREFIX) && a.account.startsWith(DEMO_ID_PREFIX) ? demoAgents : realAgents).push(a);
+    // Demo = id e conta com o prefixo do simulador (uma pasta de conta chamada "demo" não vira demo). A fábrica de
+    // verdade (OpenClaw) fica de fora: os cartões rodam nas máquinas do Gateway, não neste computador.
+    for (const a of snap.agents) {
+      if (a.id.startsWith(DEMO_ID_PREFIX) && a.account.startsWith(DEMO_ID_PREFIX)) demoAgents.push(a);
+      else if (!a.factory) realAgents.push(a);
+    }
     const real: StatsView = { agents: realAgents, rooms: snap.rooms, accounts: snap.accounts };
     const demo: StatsView = { agents: demoAgents, rooms: snap.rooms, accounts: snap.accounts };
     this.tracker.observe(real, now);

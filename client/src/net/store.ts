@@ -503,7 +503,7 @@ export class OfficeStore {
   private startMock(): void {
     if (this.mockTimer) return;
     this.setConnection('mock');
-    const sim = new DemoSimulator(mockOptionsFrom(this.search));
+    const sim = new DemoSimulator({ ...mockOptionsFrom(this.search), factory: true });
     this.mockSim = sim;
     this.applySnapshot(sim.snapshot());
     this.mockTimer = setInterval(() => {
