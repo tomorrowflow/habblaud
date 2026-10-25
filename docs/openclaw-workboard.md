@@ -42,11 +42,13 @@ sala, que é o que o resto do Habblaud usa para tratar esses agentes à parte.
 
 ## De onde vêm os dados
 
-`WorkboardSource`, uma terceira fonte no contrato `AgentSource` (`server/sources/source.ts`), ao lado da do Claude
-Code e da do Codex. Ela fala com o WebSocket do Gateway como um dispositivo pareado com escopo `operator.read`
-(desafio assinado com Ed25519 do `node:crypto`, sem dependência nova), escuta `plugin.workboard.changed` (só um sinal
-de "mudou", sem dados) e relê `workboard.boards.list`, `workboard.overview` e `workboard.cards.list`. A tradução de
-cartões para salas e personagens é uma função pura em `shared/workboard/`, a mesma que o modo demonstração usa.
+Um serviço próprio (`server/workboard/`), fora do contrato `AgentSource`: aquele contrato é de sessões que crescem
+(transcript, terminal, `provider`), e a fábrica chega como um retrato inteiro do quadro que substitui o anterior. O
+serviço fala com o WebSocket do Gateway como um dispositivo pareado com escopo `operator.read` (desafio assinado com
+Ed25519 do `node:crypto`, sem dependência nova), escuta `plugin.workboard.changed` (só um sinal de "mudou", sem dados),
+relê `workboard.boards.list` e `workboard.cards.list` e entrega ao `Office` a projeção pura de `shared/workboard/` (a
+mesma do modo demonstração). O `Office` guarda essa projeção como guarda a do demo: uma camada à parte, juntada no
+snapshot, fora de `Office.list()`, que é o que alimenta o World.
 
 Descartado: `openclaw workboard list --json` (a documentação do Workboard avisa que o acesso local pela CLI não é
 seguro com o Gateway rodando, e não é ao vivo) e o pacote `@openclaw/gateway-client` (traria dependências de runtime).
@@ -56,8 +58,9 @@ seguro com o Gateway rodando, e não é ao vivo) e o pacote `@openclaw/gateway-c
 - **Portal no host do Gateway:** o Habblaud fica em `localhost` e o Gateway o publica como Portal (proxy reverso com
   origem própria). Conecta ao Gateway por loopback, então o pareamento é aprovado sozinho. Pede um modo portal,
   opcional (`HABBLAUD_PORTAL=1`): a borda aceita `Host: localhost:<porta>` com `Origin` igual a `X-Forwarded-Host`
-  (a mesma regra do agentplay), o Habblaud fica só leitura (terminal, permissões, mensagens e `/api/world/*`
-  fechados, porque quem abre o portal é um cliente da rede, não o usuário local) e nunca manda `X-Frame-Options`.
+  (a mesma regra do agentplay), a instância inteira fica só leitura (terminal, permissões, mensagens, histórico,
+  personagem, demo e `/api/world/*` fechados), qualquer que seja o endereço de quem pede: pelo proxy, todo pedido
+  chega de `127.0.0.1`, e quem abre o portal é um cliente da rede, não o usuário local e nunca manda `X-Frame-Options`.
   `HABBLAUD_WORLD=0` nessa instância.
 - **Estação de trabalho:** a mesma fonte, conectando ao Gateway pela rede (pareamento aprovado à mão uma vez). Os
   agentes da fábrica aparecem no escritório, mas **não sobem para o Habblaud World**: rodam nos nós, não "nesta
@@ -70,7 +73,7 @@ seguro com o Gateway rodando, e não é ao vivo) e o pacote `@openclaw/gateway-c
    borda), a tabela de estágios e a projeção pura para salas e agentes, com testes. Um roteiro de exemplo no formato
    real do `workboard.cards.list` (escrito à mão a partir do contrato `@openclaw/workboard-contract`, não gravado de
    um Gateway) entra no modo demonstração, com o prefixo `demo:`, que nunca sobe para o World. Sem rede.
-2. **Cliente do Gateway e modo portal.** O `WorkboardSource` de verdade, o handshake e o pareamento, o modo portal e
+2. **Cliente do Gateway e modo portal.** O serviço da fábrica (`server/workboard/`), o handshake e o pareamento, o modo portal e
    o filtro do World (antes de qualquer agente real da fábrica entrar no `Office`). Teste aberto à mão como Portal.
 3. **OpenClaw e acabamento.** Entrada "Office" no menu do Workboard (no fork do OpenClaw, no mesmo molde do visor de
    transcripts: porta na configuração, RPC, página e `portal.open`), os links do personagem, a placa da fila, a placa
