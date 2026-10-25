@@ -1,6 +1,7 @@
 # A fábrica do OpenClaw no escritório
 
-Nota de design. Situação: **fatia 1 pronta** (só no modo demonstração); as outras ainda não existem.
+Nota de design. Situação: **fatia 1 pronta** (modo demonstração); da fatia 2, o cliente do Gateway e o filtro do World
+estão prontos (`HABBLAUD_WORKBOARD_URL`, ver `server/README.md`), o modo portal ainda não; as outras ainda não existem.
 
 A "fábrica" é o plugin Workboard do [OpenClaw](https://github.com/openclaw/openclaw) rodando no Gateway: cada quadro
 (board) é um projeto, cada cartão (card) é um tíquete que um nó (máquina de build) executa com `claude -p`, um

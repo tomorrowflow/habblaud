@@ -77,7 +77,7 @@ festa) ou 10 min. Push só avisa. O mesmo CI visto de novo em 2 min não repete 
 | `GET /api/stats/days?tz=<IANA>` | `StatsDaysResponse`: dias com dados reais (e do demo, se ligado), mais recente primeiro |
 | `GET /api/timeline/days` | `{recording, days:[{day, bytes, from, to}]}`: dias gravados para o timelapse, do mais recente ao mais antigo |
 | `GET /api/timeline/:dia` | o arquivo do dia (`AAAA-MM-DD`) em JSONL (`application/x-ndjson`, gzip se aceito); 400 para dia inválido, 404 sem gravação |
-| `GET /api/health` | `{ok, version, demo, docker, terminal, permissions, messages, updates:{state, latest, available}, sources, accounts:[{id, usageStatus}]}` |
+| `GET /api/health` | `{ok, version, demo, docker, terminal, permissions, messages, updates:{state, latest, available}, workboard:{state, boards?, error?}, sources, accounts:[{id, usageStatus}]}` |
 | `POST /api/demo` | `{enabled: boolean}` liga/desliga agentes simulados (misturados aos reais) |
 | `GET /api/mod/summary?account=&session=` | `ModSummary` para o mod do Claude Code: `{version, agents, working, waiting:[{id, name, room, account, waitingFor, since, answerable}]}`, sem o demo e sem a sessão de quem pergunta (ver abaixo) |
 | `GET /api/updates` | `{version, ...UpdateStatus}`: versão em uso e o resultado da verificação de versão nova (ver abaixo) |
@@ -355,6 +355,28 @@ do Codex levam `provider: 'codex'` (ausente = Claude Code). Ids: `<conta>:<threa
   `/ack` (mesma trava das mensagens). `canMessage` = há entregador (binário achado, ou auxiliar visto há até 10 s).
   Retorno 0 = entrou na fila da sessão (`delivered`); o Codex consome a fila a cada ~10 s, quando a sessão fica ociosa.
 
+## Fábrica do OpenClaw (Workboard)
+
+Desligada por padrão; `HABBLAUD_WORKBOARD_URL` (ex.: `ws://127.0.0.1:18789`) liga. `workboard/service.ts` conecta ao
+WebSocket do Gateway do OpenClaw como um dispositivo com o papel `operator` e só o escopo `operator.read`, escuta
+`plugin.workboard.changed` e relê `workboard.boards.list` e `workboard.cards.list` (meio segundo depois de cada mudança e a
+cada reconexão). Os quadros viram salas e os cartões em andamento viram personagens (`shared/workboard/`, ids
+`factory:workboard:…`): ficam no snapshot e na gaveta, mas fora de `Office.list()`, então fora do Habblaud World, das
+mensagens, das permissões, do editor de personagem e do Meu dia. Quem espera no Workboard entra no
+`GET /api/mod/summary` com `answerable: false` (a decisão continua no Workboard). Com o Gateway fora do ar há 60 s, a
+fábrica some do escritório.
+
+- **Pareamento.** Na primeira conexão o Gateway pede aprovação (`/api/health` mostra `workboard.state: "pairing"` e o
+  log, o comando). No computador do Gateway, rode `openclaw devices list` e depois
+  `openclaw devices approve <requestId>`, ou aprove na Control UI, em Settings › Devices. Conexões pelo loopback costumam
+  ser aprovadas sozinhas.
+- **Segredos.** `HABBLAUD_WORKBOARD_TOKEN` é o segredo compartilhado do Gateway: só vai no `connect`, nunca em log nem
+  no navegador. O par de chaves Ed25519 do dispositivo e o token que o Gateway emite depois do pareamento ficam em
+  `<dataDir>/workboard.json` (modo 600). Com esse token guardado, a conexão usa ele; recusado, volta ao segredo
+  compartilhado. Apagar o arquivo pede um pareamento novo.
+- **`/api/health`.** `workboard: {state, boards?, error?}`, com `state` `off`, `connecting`, `pairing`, `connected` ou
+  `error`; `boards` = quadros lidos (conectado); `error` = o último motivo (erro ou pareamento pendente).
+
 ## Habblaud World
 
 Ligado por padrão, apontando para `server.habblaud.com` (`DEFAULT_WORLD_URL` em `config.ts`); nada sai do computador
@@ -497,6 +519,8 @@ em `shared/world/city.ts` (fonte da verdade; o servidor do mundo guarda a cópia
 | `HABBLAUD_ALLOWED_HOSTS` | — | nomes extras aceitos no `Host`/`Origin` (vírgula); `localhost`, `*.localhost` e IPs sempre valem |
 | `HABBLAUD_WORLD_URL` | `https://server.habblaud.com` | servidor do Habblaud World: só `https://` ou `wss://`, sem caminho; `http://127.0.0.1:*` só no modo dev (recusada, o World fica desligado). O prédio sobe pelo WebSocket na mesma origem (`/v1/socket`) |
 | `HABBLAUD_WORLD` | ligado | `0` (`false`, `off`, `no`) desliga o Habblaud World: rotas 404, nada na interface e nada sai |
+| `HABBLAUD_WORKBOARD_URL` | — | WebSocket do Gateway do OpenClaw (`ws://` ou `wss://`); liga a fábrica do OpenClaw no escritório |
+| `HABBLAUD_WORKBOARD_TOKEN` | — | segredo compartilhado do Gateway, para o primeiro pareamento (nunca vai para log nem para o navegador) |
 | `HABBLAUD_WORLD_DEV` | desligado (`--dev` liga) | `1` aceita o servidor do mundo em `http://127.0.0.1` ou `ws://127.0.0.1` |
 
 No hook de permissão (ambiente do Claude Code; os argumentos `--port`/`--timeout` gravados pelo instalador têm

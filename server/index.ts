@@ -58,6 +58,8 @@ import { OwnerSocial } from './world/social';
 import { BuildingTokens } from './world/tokens';
 import { BuildingUplink } from './world/uplink';
 import { WorldViewer } from './world/viewer';
+import { DeviceStore } from './workboard/device';
+import { WorkboardService } from './workboard/service';
 
 const config = loadConfig();
 const startedAt = Date.now();
@@ -147,6 +149,18 @@ late.agents = agents;
 const hub = new Hub(office, {
   canAnswer: (req) => (isRemoteRequest(req) ? !!config.remote?.allow.has('permissions') : isLoopbackHost(req.headers.host)),
 });
+// Fábrica do OpenClaw (workboard/service.ts): só com HABBLAUD_WORKBOARD_URL. Os quadros entram no Office como camada à
+// parte (fora de Office.list(), então fora do World), e o pareamento fica em <dataDir>/workboard.json.
+const workboard = config.workboard
+  ? new WorkboardService({
+      url: config.workboard.url,
+      token: config.workboard.token,
+      store: new DeviceStore(join(config.dataDir, 'workboard.json')),
+      office,
+      version: config.version,
+    })
+  : undefined;
+workboard?.start();
 // "Meu dia": amostra o escritório a cada segundo e persiste em <dataDir>/stats/ (ver history/daystats.ts).
 const stats = new DayStatsService({ dir: join(config.dataDir, 'stats'), snapshot: () => hub.current() });
 stats.load();
@@ -368,7 +382,7 @@ const api = createApiHandler({
     const snap = hub.current();
     const last = new Map<string, number>();
     for (const a of snap.agents) last.set(a.roomId, Math.max(last.get(a.roomId) ?? 0, a.lastEventAt ?? 0));
-    const rooms = snap.rooms.filter((r) => !isDemoId(r.id)).map((r) => ({ path: r.path, lastAt: last.get(r.id) ?? 0 }));
+    const rooms = snap.rooms.filter((r) => !isDemoId(r.id) && !r.factory).map((r) => ({ path: r.path, lastAt: last.get(r.id) ?? 0 }));
     return recentFolders(history ? await history.list().catch(() => []) : [], rooms);
   },
   codexLive,
@@ -376,6 +390,7 @@ const api = createApiHandler({
   updates,
   remote: config.remote ? { is: isRemoteRequest, allows: (f) => config.remote!.allow.has(f) } : undefined,
   world: world ? createWorldRoutes(world, worldViewer, worldSocial) : undefined,
+  workboard: workboard ? () => workboard.health() : undefined,
 });
 
 const server = http.createServer();
@@ -520,6 +535,12 @@ server.listen(config.port, config.host, () => {
           : tr('   Mensagens ao Codex: sem o binário do Codex (codex no PATH ou HABBLAUD_CODEX_BIN); o auxiliar npm run codex:bridge também serve.'),
     );
   }
+  if (config.workboardWarning) log.warn(`   ${config.workboardWarning}.`);
+  log.info(
+    config.workboard
+      ? tr('   Fábrica do OpenClaw: conectando ao Gateway em {0}{1}.', [config.workboard.url, config.workboard.token ? '' : tr(' (sem HABBLAUD_WORKBOARD_TOKEN)')])
+      : tr('   Fábrica do OpenClaw: desligada (ligue com HABBLAUD_WORKBOARD_URL).'),
+  );
   if (config.world.warning) log.warn(`   ${config.world.warning}.`);
   log.info(
     !world
@@ -558,6 +579,7 @@ function shutdown(signal: string): void {
   worldViewer?.stop();
   worldUplink?.stop();
   world?.stop();
+  workboard?.stop();
   names.flush();
   void closeVite?.();
   remoteListener?.close();

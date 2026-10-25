@@ -1,4 +1,4 @@
-// Modelo do escritório: agentes (reais e de demonstração), salas, feed e avisos.
+// Modelo do escritório: agentes (reais, de demonstração e da fábrica do OpenClaw), salas, feed e avisos.
 // Os observadores de fontes (sources/watcher.ts) chamam os métodos de mutação; o hub SSE
 // chama commit() (com throttle) para obter o snapshot novo, o feed e os avisos pendentes.
 import type {
@@ -28,6 +28,7 @@ import { nameKey, type AppearanceParts } from '../../shared/appearance';
 import { DemoSimulator } from '../../shared/demo/simulator';
 import { describeGitHubEvent, githubEventKey, RoomEffects, type GitHubEvent } from '../../shared/github';
 import { hash32 } from '../../shared/hash';
+import type { FactoryProjection } from '../../shared/workboard/project';
 import { applyPermission } from '../permissions/registry';
 import type { NameStore, StoredCharacter } from './names';
 import { normalizeCwd, roomDisplayNames, SlotAllocator } from './rooms';
@@ -192,6 +193,15 @@ class NameSet extends Set<string> {
   }
 }
 
+/**
+ * Camada só de exibição (o demo e a fábrica): entra no snapshot, no detalhe e nos nomes ocupados, mas nunca em
+ * `list()` nem em `has()`, que é o que o World, as mensagens, as permissões, o editor e as estatísticas usam.
+ */
+interface Overlay {
+  rooms: ReadonlyArray<Omit<RoomInfo, 'slot'>>;
+  agents: readonly AgentInfo[];
+}
+
 const byStart = (a: ShellJob, b: ShellJob) => a.startedAt - b.startedAt || a.id.localeCompare(b.id);
 
 export class Office {
@@ -209,6 +219,8 @@ export class Office {
   private last: OfficeSnapshot | null = null;
   private demo: DemoSimulator | null = null;
   private demoSnap: OfficeSnapshot | null = null;
+  /** A fábrica do OpenClaw (server/workboard/): quadros e cartões do Gateway, projetados. */
+  private factory: FactoryProjection | null = null;
   private booting = false;
   /** Fontes bootando agora (beginBoot/endBoot contados): o boot só termina quando todas terminaram. */
   private bootDepth = 0;
@@ -299,8 +311,13 @@ export class Office {
   detail(id: string): AgentDetail | undefined {
     const rec = this.agents.get(id);
     if (rec) return { agent: cloneAgent(rec.info), history: rec.history.slice() };
-    const demo = this.demoSnap?.agents.find((a) => a.id === id);
-    return demo ? { agent: cloneAgent(demo), history: demo.recent.slice() } : undefined;
+    const shown = this.overlayAgents().find((a) => a.id === id);
+    return shown ? { agent: cloneAgent(shown), history: shown.recent.slice() } : undefined;
+  }
+
+  /** `id` é um personagem da fábrica (só no snapshot, como os do demo). */
+  inFactory(id: string): boolean {
+    return !!this.factory?.agents.some((a) => a.id === id);
   }
 
   recentFeed(n: number): FeedItem[] {
@@ -808,6 +825,15 @@ export class Office {
     this.markDirty();
   }
 
+  // ---------------------------------------------------------------- fábrica (OpenClaw Workboard)
+
+  /** Troca a fábrica inteira (null = some do escritório). */
+  setFactory(view: FactoryProjection | null): void {
+    this.factory = view;
+    this.recomputeRoomNames();
+    this.markDirty();
+  }
+
   // ---------------------------------------------------------------- personagem do projeto (editor)
 
   /** Escolhe nome e aparência do agente principal `id` e grava como o personagem da sala dele. */
@@ -894,7 +920,7 @@ export class Office {
       if (r.info.id === id || (r.removeAt !== undefined && !leaving) || nameKey(r.info.name) !== key) continue;
       return tr('{0} já está no escritório em {1}', [r.info.name, this.roomName(r.info.roomId)]);
     }
-    for (const a of this.demoSnap?.agents ?? []) {
+    for (const a of this.overlayAgents()) {
       if (nameKey(a.name) === key) return tr('{0} já está no escritório em {1}', [a.name, this.roomName(a.roomId)]);
     }
     for (const [n, room] of this.deps.names.reservedNames(roomId)) {
@@ -954,7 +980,8 @@ export class Office {
   private build(): OfficeSnapshot {
     const now = this.now();
     const entries = new Map(this.rooms);
-    for (const r of this.demoSnap?.rooms ?? []) entries.set(r.id, { path: r.path, createdAt: r.createdAt });
+    const shownRooms = this.overlays().flatMap((o) => o.rooms);
+    for (const r of shownRooms) entries.set(r.id, { path: r.path, createdAt: r.createdAt });
     this.slots.sync(entries.keys(), now);
     const rooms: RoomInfo[] = [...entries]
       .map(([id, r]) => ({
@@ -966,14 +993,14 @@ export class Office {
         createdAt: r.createdAt,
       }))
       .sort((a, b) => a.slot - b.slot);
-    // festa/alarme (eventos do GitHub): das salas reais ou do demo; a sala da fábrica do demo leva o nome do quadro
+    // festa/alarme (eventos do GitHub): das salas reais ou das camadas; a sala da fábrica leva o nome do quadro
     for (const room of rooms) {
-      const demo = this.demoSnap?.rooms.find((r) => r.id === room.id);
-      const effect = this.effects.get(room.id, now) ?? demo?.effect;
+      const shown = shownRooms.find((r) => r.id === room.id);
+      const effect = this.effects.get(room.id, now) ?? shown?.effect;
       if (effect) room.effect = { ...effect };
-      if (demo?.factory) {
-        room.name = demo.name;
-        room.factory = { ...demo.factory };
+      if (shown?.factory) {
+        room.name = shown.name;
+        room.factory = { ...shown.factory };
       }
     }
     const perms = this.deps.permissions?.();
@@ -982,7 +1009,7 @@ export class Office {
     // Mensagens pelo escritório: principais presentes cuja sessão está com o plugin conectado. No demo quem decide é
     // o simulador; com o recurso desligado, ninguém recebe.
     for (const a of real) if (reach?.has(a.id) && a.kind === 'main' && a.status !== 'offline' && a.status !== 'done') a.canMessage = true;
-    const demoAgents = (this.demoSnap?.agents ?? []).map((a) => {
+    const shownAgents = this.overlayAgents().map((a) => {
       if (reach || !a.canMessage) return a;
       const { canMessage: _off, ...rest } = a;
       return rest;
@@ -995,7 +1022,7 @@ export class Office {
       rev: this.rev,
       serverTime: now,
       rooms,
-      agents: [...real, ...demoAgents].map(trim),
+      agents: [...real, ...shownAgents].map(trim),
       accounts: [...this.deps.accounts(sessions), ...(this.demoSnap?.accounts ?? [])],
       ...(ptys ? { ptys: ptys.list } : {}),
       meta: {
@@ -1023,7 +1050,7 @@ export class Office {
       if (r.info.id === exceptId || (exceptSession && r.info.kind === 'main' && r.info.sessionId === exceptSession)) continue;
       used.add(r.info.name);
     }
-    for (const a of this.demoSnap?.agents ?? []) used.add(a.name);
+    for (const a of this.overlayAgents()) used.add(a.name);
     for (const n of this.deps.names.reservedNames().keys()) used.add(n);
     return used;
   }
@@ -1052,12 +1079,21 @@ export class Office {
 
   private recomputeRoomNames(): void {
     const paths = new Map([...this.rooms].map(([id, r]) => [id, r.path]));
-    for (const r of this.demoSnap?.rooms ?? []) paths.set(r.id, r.path);
+    for (const o of this.overlays()) for (const r of o.rooms) paths.set(r.id, r.path);
     this.roomNames = roomDisplayNames(paths);
     for (const [id, path] of paths) {
       const alias = this.deps.roomAlias?.(path);
       if (alias) this.roomNames.set(id, alias);
     }
+  }
+
+  private overlays(): Overlay[] {
+    const layers: Array<Overlay | null> = [this.demoSnap, this.factory];
+    return layers.filter((o) => o !== null);
+  }
+
+  private overlayAgents(): AgentInfo[] {
+    return this.overlays().flatMap((o) => o.agents);
   }
 
   /** Um nome de sala mudou (renomear): recalcula e transmite. */

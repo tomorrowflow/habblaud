@@ -17,7 +17,13 @@ do meio (0.**3**.0).
   personagem por cartão em andamento (trabalhando ou esperando por você, com o estágio e o título no balão), um
   verificador e um personagem do grill enquanto essas etapas rodam, a contagem de cartões na fila, festa quando um
   cartão é publicado e alarme quando a verificação reprova. Cartões de teste (`[PROBE:…]`) e concluídos não aparecem. É
-  só demonstração: nada disso sobe ao Habblaud World, e ainda não há conexão com um Gateway de verdade.
+  só demonstração: nada disso sobe ao Habblaud World.
+- **A fábrica do OpenClaw de verdade, ao vivo.** Com `HABBLAUD_WORKBOARD_URL` (e `HABBLAUD_WORKBOARD_TOKEN`), o
+  Habblaud conecta ao Gateway do OpenClaw só para ler e mostra os quadros do Workboard como salas, com os cartões em
+  andamento como personagens, atualizados a cada mudança. Na primeira vez, aprove o dispositivo no Gateway
+  (`openclaw devices approve <requestId>`, o log mostra o pedido); o estado aparece em `/api/health`. Quem espera por
+  você no Workboard entra no resumo do mod do Claude Code. Os agentes da fábrica rodam nas máquinas do Gateway, não
+  neste computador: nunca sobem ao Habblaud World nem contam no Meu dia.
 
 ## [1.0.3] - 2026-10-16
 

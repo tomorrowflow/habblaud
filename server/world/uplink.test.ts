@@ -163,6 +163,9 @@ async function start(
       agent('s-101:agent-1', '/Users/ana/projeto-secreto', { kind: 'sub', parentId: '.claude:101', look: 'm' }),
       agent('.codex:thr-9', '/Users/ana/outro', { provider: 'codex', status: 'idle' }),
       agent('demo:agente-1', 'demo:/sala', { status: 'working' }),
+      // A fábrica do OpenClaw nunca sobe, nem se chegasse aqui numa sala real.
+      agent('factory:workboard:wb-1', '/Users/ana/projeto-secreto', { factory: { boardId: 'loja', cardId: 'wb-1', role: 'builder' } }),
+      agent('wb-2', '/Users/ana/outro', { factory: { boardId: 'loja', cardId: 'wb-2', role: 'verifier' } }),
     ],
     goodbyes: [] as GoodbyeReason[],
     changes: { n: 0 },
@@ -219,7 +222,7 @@ describe('BuildingUplink: conexão e remessas', () => {
     expect(uplink.floors).toHaveLength(2);
     expect(agentsOf(uplink)).toHaveLength(3);
     expect(uplink.tokens).toEqual({ day: 12_000, week: 680_000 });
-    for (const leak of ['demo', '/Users', 'projeto-secreto', 'outro', '.claude', '.codex', 'thr-9', 's-101']) {
+    for (const leak of ['demo', 'factory', 'workboard', 'wb-', '/Users', 'projeto-secreto', 'outro', '.claude', '.codex', 'thr-9', 's-101']) {
       expect(JSON.stringify(uplink), leak).not.toContain(leak);
     }
     const sub = agentsOf(uplink).find((a) => a.kind === 'sub')!;
