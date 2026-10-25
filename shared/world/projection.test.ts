@@ -213,6 +213,26 @@ describe('projeção: regras', () => {
     expect(project(input([room('demo:/x')], [agent('demo:a', 'demo:/x')]), new FakeIds(), NOW).floors).toEqual([]);
   });
 
+  it('fábrica do OpenClaw nunca entra: nem pelo id `factory:`, nem pela sala, nem pelo campo `factory` (nem pede id do mundo)', () => {
+    const ids = new FakeIds();
+    const factory = { boardId: 'loja', cardId: 'wb-1', role: 'builder' as const };
+    const rooms = [room('/p/real'), room('factory:workboard:loja')];
+    const agents = [
+      agent('acc:1', '/p/real'),
+      agent('factory:workboard:wb-1', 'factory:workboard:loja', { factory }),
+      // Chegou à entrada com a sala real ou sem o prefixo: o campo `factory` basta para ficar de fora.
+      agent('factory:workboard:wb-2', '/p/real', { factory: { ...factory, cardId: 'wb-2' } }),
+      agent('wb-3', '/p/real', { factory: { ...factory, cardId: 'wb-3' } }),
+      agent('acc:2', 'factory:workboard:loja'),
+    ];
+    const u = project(input(rooms, agents), ids, NOW);
+    expect(u.floors).toHaveLength(1);
+    expect(agentsOf(u)).toHaveLength(1);
+    expect(ids.calls.filter((c) => c.includes('factory:') || c.includes('wb-') || c.includes('acc:2'))).toEqual([]);
+    expect(JSON.stringify(u)).not.toMatch(/factory|workboard|loja|wb-/);
+    expect(project(input([room('factory:workboard:x')], [agent('factory:workboard:a', 'factory:workboard:x', { factory })]), new FakeIds(), NOW).floors).toEqual([]);
+  });
+
   it('só agentes presentes: done e offline somem, e a sala sem ninguém presente não vira andar', () => {
     const rooms = [room('/p/a'), room('/p/b'), room('/p/vazia')];
     const agents = [

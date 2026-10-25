@@ -8,6 +8,8 @@ import { AccountsService } from '../accounts/service';
 import { setQuiet } from '../log';
 import { NameStore } from '../model/names';
 import { Office, type OfficeDeps } from '../model/office';
+import { parseFrame } from '../../shared/workboard/parse';
+import { FACTORY_ID_PREFIX, projectFactory } from '../../shared/workboard/project';
 import { tempDir } from '../test/fixtures';
 import { createApiHandler, type ApiDeps } from './app';
 import { createRequestGuard, hostAllowed, hostnameOf, isLoopbackHost, originAllowed, parseAllowedHosts } from './guard';
@@ -138,6 +140,18 @@ describe('API HTTP', () => {
     expect((await fetch(`${env.base}/api/agents/nao-existe`)).status).toBe(404);
     const health = await (await fetch(`${env.base}/api/health`)).json();
     expect(health).toMatchObject({ ok: true, version: '9.9.9', demo: false, docker: false, terminal: false, accounts: [{ id: '.claude', usageStatus: 'disabled' }] });
+  });
+
+  it('/api/health: a fábrica do OpenClaw desligada por padrão; ligada, o estado da conexão com o Gateway', async () => {
+    expect(((await (await fetch(`${env.base}/api/health`)).json()) as { workboard: unknown }).workboard).toEqual({ state: 'off' });
+    const other = await start({ workboard: () => ({ state: 'pairing', error: 'aguardando aprovação no Gateway (req-1)' }) });
+    try {
+      const health = (await (await fetch(`${other.base}/api/health`)).json()) as { workboard: unknown };
+      expect(health.workboard).toEqual({ state: 'pairing', error: 'aguardando aprovação no Gateway (req-1)' });
+    } finally {
+      await other.close();
+      other.cleanup();
+    }
   });
 
   it('GET /api/updates e POST /api/updates/check sem verificador: desligado', async () => {
@@ -393,6 +407,21 @@ describe('GET /api/mod/summary (mod do Claude Code)', () => {
     const s = await summary();
     expect(s.agents).toBe(3);
     expect(s.waiting.every((w) => !w.id.startsWith('demo:'))).toBe(true);
+  });
+
+  it('a fábrica do OpenClaw entra: quem espera no Workboard aparece com o nome do quadro, sem responder pelo escritório', async () => {
+    const now = Date.now();
+    const frame = parseFrame({
+      boards: [{ id: 'loja', name: 'Loja online' }],
+      cards: { loja: [{ id: 'wb-1', title: 'Checkout com Pix', stage: { kind: 'awaiting_review', since: now - 1_000 } }, { id: 'wb-2', title: 'Carrinho', stage: { kind: 'running', since: now } }] },
+    });
+    env.office.setFactory(projectFactory(frame, { idPrefix: FACTORY_ID_PREFIX, account: 'openclaw', now, createdAt: now }));
+    const s = await summary();
+    expect(s).toMatchObject({ agents: 6, working: 2 });
+    expect(s.waiting.find((w) => w.id === 'factory:workboard:wb-1')).toMatchObject({ room: 'Loja online', account: 'openclaw', answerable: false });
+    // O demo continua de fora (inclusive a fábrica de mentira dele).
+    await fetch(`${env.base}/api/demo`, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ enabled: true }) });
+    expect((await summary()).waiting.every((w) => !w.id.startsWith('demo:'))).toBe(true);
   });
 
   it('só GET/HEAD (405 com Allow)', async () => {

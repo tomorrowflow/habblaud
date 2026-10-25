@@ -22,6 +22,7 @@ import { AUDIO_BODY_MAX, type DictationService } from '../dictation/dictation';
 import type { DeliveryIndex } from '../deliveries/deliveries';
 import type { FileFetcher } from '../deliveries/fetcher';
 import { HOST_WAIT_MS } from '../host-wait';
+import type { WorkboardHealth } from '../workboard/service';
 
 export interface ApiDeps {
   office: Office;
@@ -77,6 +78,8 @@ export interface ApiDeps {
   files?: FileFetcher;
   /** Renomeia a sala (POST /api/rooms/rename {id, name}; vazio volta ao padrão). Devolve o nome em uso, ou undefined se a sala não existe. */
   renameRoom?: (id: string, name: string) => string | undefined;
+  /** Fábrica do OpenClaw (server/workboard/): o estado da conexão com o Gateway, para o /api/health. */
+  workboard?: () => WorkboardHealth;
   /** Estatísticas do "Meu dia" (GET /api/stats, http/stats.ts). */
   stats?: DayStatsService;
   /** Verificação de versão nova no GitHub (GET /api/updates, POST /api/updates/check; updates/checker.ts). */
@@ -228,15 +231,16 @@ function updatesSummary(s: UpdateStatus | undefined): { state: UpdateStatus['sta
 const MAX_PARENT_HOPS = 16;
 
 /**
- * Resumo para o mod do Claude Code (GET /api/mod/summary, ver ModSummary). `isReal` diz quem é agente de
- * verdade: os do demo vivem só no snapshot (não no Office), então `office.has(id)` os separa sem depender
- * do prefixo "demo:". A própria sessão sai quando vem `session` (e, se vier, `account` também precisa
+ * Resumo para o mod do Claude Code (GET /api/mod/summary, ver ModSummary). `counts` diz quem entra: os agentes de
+ * verdade (`office.has(id)`) e os da fábrica do OpenClaw (`office.inFactory(id)`, que esperam por você no Workboard e
+ * por isso vêm com `answerable: false`); os do demo vivem só no snapshot e ficam de fora sem depender do prefixo
+ * "demo:". A própria sessão sai quando vem `session` (e, se vier, `account` também precisa
  * bater): o principal tem o sessionId atual da sessão (troca no /clear) e os subagentes guardam o da
  * sessão que os disparou; por garantia, um subagente também sai quando algum ancestral (parentId) é dela.
  */
 export function modSummary(
   snap: OfficeSnapshot,
-  isReal: (id: string) => boolean,
+  counts: (id: string) => boolean,
   version: string,
   own: { account?: string; session?: string } = {},
 ): ModSummary {
@@ -251,7 +255,7 @@ export function modSummary(
     }
     return false;
   };
-  const present = snap.agents.filter((a) => isReal(a.id) && a.status !== 'offline' && a.status !== 'done' && !isOwn(a));
+  const present = snap.agents.filter((a) => counts(a.id) && a.status !== 'offline' && a.status !== 'done' && !isOwn(a));
   const waiting = present
     .filter((a) => a.status === 'waiting')
     .sort((a, b) => a.statusSince - b.statusSince || a.id.localeCompare(b.id))
@@ -411,6 +415,7 @@ export function createApiHandler(given: ApiDeps): (req: IncomingMessage, res: Se
           messages: !!deps.messages && (!remote || trusted(req, 'messages')),
           codexEvents: !!deps.codexLive,
           updates: updatesSummary(deps.updates?.status()),
+          workboard: deps.workboard?.() ?? { state: 'off' },
           sources: deps.sources(),
           accounts: accounts.allEntries().map((a) =>
             a.provider === 'claude'
@@ -443,7 +448,7 @@ export function createApiHandler(given: ApiDeps): (req: IncomingMessage, res: Se
       if (!isRead) methodNotAllowed(res, 'GET');
       else {
         const own = { account: url.searchParams.get('account') || undefined, session: url.searchParams.get('session') || undefined };
-        sendJson(res, 200, modSummary(hub.current(), (id) => office.has(id), deps.version, own));
+        sendJson(res, 200, modSummary(hub.current(), (id) => office.has(id) || office.inFactory(id), deps.version, own));
       }
       return true;
     }

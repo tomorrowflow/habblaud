@@ -131,6 +131,7 @@ pacote inteiro se aparecer qualquer campo fora da lista.
 | Coisas da máquina | Nome do computador, usuário do sistema, fuso horário. O dispositivo aparece só como "Dispositivo 1/2/3" |
 | O seu histórico | Estatísticas do Meu dia, a linha do tempo do timelapse, o histórico de sessões |
 | Agentes do modo demonstração | Ficam de fora antes de montar o pacote |
+| Agentes da fábrica (Workboard do OpenClaw) | Os cartões rodam nas máquinas do Gateway, não neste computador: salas e personagens da fábrica ficam de fora antes de montar o pacote |
 
 ## Ao vivo, sem identificar ninguém
 

@@ -39,6 +39,10 @@ const ROLE_ICON: Record<FactoryRole, string> = { builder: '🏭', verifier: '�
 const MAX_ACTIVITY = 46;
 const MAX_TITLE = 120;
 
+/** Prefixo dos ids da fábrica de verdade (server/workboard/); como `demo:`, nunca sobe para o World. */
+export const FACTORY_ID_PREFIX = 'factory:';
+export const isFactoryId = (id: string): boolean => id.startsWith(FACTORY_ID_PREFIX);
+
 export const factoryAgentId = (prefix: string, cardId: string, role: FactoryRole): string =>
   `${prefix}workboard:${cardId}${role === 'builder' ? '' : `:${role}`}`;
 
