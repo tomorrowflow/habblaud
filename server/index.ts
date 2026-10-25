@@ -145,7 +145,7 @@ late.office = office;
 late.agents = agents;
 // Página que pode responder pelo escritório: Host local na porta local; na remota, só com permissions liberado.
 const hub = new Hub(office, {
-  canAnswer: (req) => (isRemoteRequest(req) ? !!config.remote?.allow.has('permissions') : isLoopbackHost(req.headers.host)),
+  canAnswer: (req) => !config.portal && (isRemoteRequest(req) ? !!config.remote?.allow.has('permissions') : isLoopbackHost(req.headers.host)),
 });
 // "Meu dia": amostra o escritório a cada segundo e persiste em <dataDir>/stats/ (ver history/daystats.ts).
 const stats = new DayStatsService({ dir: join(config.dataDir, 'stats'), snapshot: () => hub.current() });
@@ -376,6 +376,7 @@ const api = createApiHandler({
   updates,
   remote: config.remote ? { is: isRemoteRequest, allows: (f) => config.remote!.allow.has(f) } : undefined,
   world: world ? createWorldRoutes(world, worldViewer, worldSocial) : undefined,
+  portal: config.portal,
 });
 
 const server = http.createServer();
@@ -402,12 +403,12 @@ if (config.dev) {
   closeVite = () => vite.close();
   fallback = (req, res) => vite.middlewares(req, res);
 } else {
-  const serveStatic = createStaticHandler(join(config.rootDir, 'dist', 'client'));
+  const serveStatic = createStaticHandler(join(config.rootDir, 'dist', 'client'), { embeddable: config.portal });
   fallback = (req, res, url) => serveStatic(req, res, url.pathname);
 }
 
 // Host/Origin/Content-Type: barra DNS rebinding e CSRF antes de qualquer rota (inclusive o Vite).
-const guard = createRequestGuard({ allowedHosts: config.allowedHosts });
+const guard = createRequestGuard({ allowedHosts: config.allowedHosts, portal: config.portal, port: config.port });
 
 server.on('request', (req, res) => {
   const url = parseUrl(req);
@@ -521,9 +522,14 @@ server.listen(config.port, config.host, () => {
     );
   }
   if (config.world.warning) log.warn(`   ${config.world.warning}.`);
+  if (config.portal) {
+    log.info(tr('   Modo portal (HABBLAUD_PORTAL): instância só leitura atrás do Portal do OpenClaw; Habblaud World desligado.'));
+  }
   log.info(
     !world
-      ? tr('   Habblaud World: escondido (HABBLAUD_WORLD=0).')
+      ? config.portal
+        ? tr('   Habblaud World: escondido (modo portal).')
+        : tr('   Habblaud World: escondido (HABBLAUD_WORLD=0).')
       : !config.world.url
         ? tr('   Habblaud World: desligado (HABBLAUD_WORLD_URL recusada).')
         : tr('   Habblaud World: {0}, conta neste computador: {1}{2}.', [

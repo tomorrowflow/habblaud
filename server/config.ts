@@ -58,6 +58,11 @@ export interface ServerConfig {
   remoteWarning?: string;
   /** Habblaud World (server/world/): conta, personagem e, nas próximas fases, o prédio no mundo. */
   world: WorldConfig;
+  /**
+   * HABBLAUD_PORTAL=1: o Habblaud roda atrás do Portal do OpenClaw (proxy reverso do Gateway). A instância fica só
+   * leitura (terminal, mensagens, permissões, personagem e World fechados) e a borda aceita o Host reescrito pelo proxy.
+   */
+  portal: boolean;
 }
 
 export interface WorldConfig {
@@ -149,6 +154,8 @@ export function isLoopbackBind(value: string | undefined): boolean {
  * de ligar com a porta exposta.
  */
 export function terminalOffReason(env: NodeJS.ProcessEnv, host: string, inDocker: boolean): string | undefined {
+  // Pelo proxy do portal todo pedido chega do loopback com Host local, mas quem olha é um cliente da rede.
+  if (isTruthy(env.HABBLAUD_PORTAL)) return tr('modo portal (HABBLAUD_PORTAL): a instância é só leitura');
   const flag = env.HABBLAUD_TERMINAL?.trim();
   if (flag && !isTruthy(flag)) return `HABBLAUD_TERMINAL=${flag}`;
   if (inDocker) {
@@ -185,11 +192,12 @@ const LOCAL_WORLD_HOSTS: readonly string[] = ['127.0.0.1', 'host.docker.internal
  * `wss://` (o token do dispositivo nunca anda sem TLS); `http://` e `ws://` só no modo de desenvolvimento e só para
  * 127.0.0.1 ou host.docker.internal (o servidor do mundo rodando no próprio computador, visto de fora ou de dentro do
  * Docker). Nada de caminho, usuário, senha ou parâmetros: só o endereço do servidor. Uma URL definida e recusada não
- * cai no padrão: o recurso fica desligado, com o motivo em `warning`.
+ * cai no padrão: o recurso fica desligado, com o motivo em `warning`. No modo portal (HABBLAUD_PORTAL) o World fica
+ * desligado, como com HABBLAUD_WORLD=0.
  */
 export function parseWorldConfig(env: NodeJS.ProcessEnv, argv: string[]): WorldConfig {
   const flag = env.HABBLAUD_WORLD?.trim();
-  const enabled = !flag || isTruthy(flag);
+  const enabled = (!flag || isTruthy(flag)) && !isTruthy(env.HABBLAUD_PORTAL);
   const dev = argv.includes('--dev') || isTruthy(env.HABBLAUD_WORLD_DEV);
   if (!enabled) return { enabled, dev };
   const raw = env.HABBLAUD_WORLD_URL?.trim();
@@ -252,5 +260,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     remote: remote.config,
     remoteWarning: remote.warning,
     world: parseWorldConfig(env, argv),
+    portal: isTruthy(env.HABBLAUD_PORTAL),
   };
 }

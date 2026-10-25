@@ -8,7 +8,7 @@ import type { DayStatsService } from '../history/daystats';
 import type { Office } from '../model/office';
 import type { CodexLive } from '../sources/codex/live';
 import type { SessionLookup } from '../sources/source';
-import { isJsonContentType, isLoopbackHost } from './guard';
+import { isForwarded, isJsonContentType, isLoopbackHost } from './guard';
 import type { RemoteFeature } from './remote';
 import { handleSessionsRoute } from './sessions';
 import type { Hub } from './sse';
@@ -94,6 +94,14 @@ export interface ApiDeps {
    * local com Host local: pela porta do celular, nem com login (403 `local_only`).
    */
   world?: (req: IncomingMessage, res: ServerResponse, url: URL) => void;
+  /**
+   * Modo portal (HABBLAUD_PORTAL=1, atrás do Portal do OpenClaw): instância só leitura. Pelo proxy todo pedido chega do
+   * loopback com Host local, mas quem olha é um cliente da rede, então nenhuma trava de "computador local" vale: os
+   * recursos que agem (terminal, permissões, mensagens, novo agente, personagem, World...) ficam como desligados, e
+   * POST /api/demo e /api/updates/check recebem 403. Só os eventos dos hooks do Codex seguem abertos, a quem fala direto
+   * com o Habblaud (sem X-Forwarded-Host).
+   */
+  portal?: boolean;
 }
 
 /** GET /api/agents/:id/terminal (ids nunca contêm '/'). */
@@ -259,8 +267,33 @@ export function modSummary(
   return { version, agents: present.length, working: present.filter((a) => a.status === 'working').length, waiting };
 }
 
+/** As mesmas dependências sem nenhum recurso que age: cada rota responde como responde com o recurso desligado. */
+function readOnly(deps: ApiDeps): ApiDeps {
+  return {
+    ...deps,
+    terminal: false,
+    terminals: undefined,
+    sessions: undefined,
+    permissions: undefined,
+    messages: undefined,
+    pty: undefined,
+    spawn: undefined,
+    spawnFolders: undefined,
+    attachments: undefined,
+    dictation: undefined,
+    deliveries: undefined,
+    files: undefined,
+    renameRoom: undefined,
+    world: undefined,
+  };
+}
+
+const PORTAL_READ_ONLY = tr('modo portal (HABBLAUD_PORTAL): a instância é só leitura');
+
 /** Devolve um handler que trata /api/* e responde false para o resto. */
-export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: ServerResponse, url: URL) => boolean {
+export function createApiHandler(given: ApiDeps): (req: IncomingMessage, res: ServerResponse, url: URL) => boolean {
+  const portal = !!given.portal;
+  const deps: ApiDeps = portal ? readOnly(given) : given;
   const { office, hub, accounts } = deps;
   const terminals = deps.terminal ? deps.terminals : undefined;
 
@@ -270,9 +303,9 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
    * que HABBLAUD_REMOTE_ALLOW liberar (`feature` ausente = nunca pela porta remota).
    */
   const trusted = (req: IncomingMessage, feature?: RemoteFeature): boolean =>
-    isRemote(req) ? !!feature && !!deps.remote?.allows(feature) : isLoopbackHost(req.headers.host);
+    isRemote(req) ? !!feature && !!deps.remote?.allows(feature) : !portal && isLoopbackHost(req.headers.host);
   const denied = (req: IncomingMessage, localMessage: string): string =>
-    isRemote(req) ? tr('não liberado no acesso remoto (veja HABBLAUD_REMOTE_ALLOW)') : localMessage;
+    portal ? PORTAL_READ_ONLY : isRemote(req) ? tr('não liberado no acesso remoto (veja HABBLAUD_REMOTE_ALLOW)') : localMessage;
 
   const methodNotAllowed = (res: ServerResponse, allow: string) => {
     res.setHeader('Allow', allow);
@@ -370,6 +403,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
           demo: office.isDemo(),
           docker: deps.inDocker,
           remote,
+          ...(portal ? { portal: true } : {}),
           terminal: !!terminals && (!remote || trusted(req, 'terminal')),
           permissions: !!deps.permissions && (!remote || trusted(req, 'permissions')),
           // O terminal interativo (pty) nunca vale pela porta remota.
@@ -393,7 +427,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
         const remote = isRemote(req);
         const access: AccessInfo = {
           remote,
-          local: !remote && isLoopbackHost(req.headers.host),
+          local: !remote && !portal && isLoopbackHost(req.headers.host),
           permissions: !!deps.permissions && trusted(req, 'permissions'),
           messages: !!deps.messages && trusted(req, 'messages'),
           terminal: !!terminals && trusted(req, 'terminal'),
@@ -484,7 +518,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       // sempre conecta pelo loopback (o Host sozinho um cliente da rede consegue imitar); no Docker ele chega pela porta
       // publicada, com o endereço do gateway.
       if (method !== 'POST') methodNotAllowed(res, 'POST');
-      else if (!trusted(req) || (!deps.inDocker && !isLoopbackAddress(req.socket.remoteAddress))) {
+      else if (!isLoopbackHost(req.headers.host) || (portal && isForwarded(req)) || isRemote(req) || (!deps.inDocker && !isLoopbackAddress(req.socket.remoteAddress))) {
         sendJson(res, 403, { error: denied(req, tr('eventos do Codex só são aceitos pelo próprio computador (http://localhost ou http://127.0.0.1)')) });
       } else handleCodexEvent(req, res, { live: deps.codexLive, entries: () => accounts.entriesOf('codex') }).catch((err) => fail(res, err));
       return true;
@@ -686,6 +720,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
     if (path === '/api/demo') {
       // Liga o modo demonstração para todo mundo: só pelo computador (o celular com login só vê o que foi liberado).
       if (method !== 'POST') methodNotAllowed(res, 'POST');
+      else if (portal) sendJson(res, 403, { error: PORTAL_READ_ONLY });
       else if (isRemote(req)) sendJson(res, 403, { error: tr('não liberado no acesso remoto (veja HABBLAUD_REMOTE_ALLOW)') });
       else handleDemo(req, res).catch((err) => fail(res, err));
       return true;
@@ -698,7 +733,10 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
     if (path === '/api/updates/check') {
       // "Verificar agora": consulta o GitHub (no máximo uma vez a cada 30 s) e devolve o status novo.
       if (method !== 'POST') methodNotAllowed(res, 'POST');
-      else {
+      else if (portal) {
+        req.resume();
+        sendJson(res, 403, { error: PORTAL_READ_ONLY });
+      } else {
         req.resume();
         const updates = deps.updates;
         if (!updates) sendJson(res, 200, { version: deps.version, state: 'off', available: false });

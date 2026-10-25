@@ -1530,6 +1530,10 @@ export const FR: Readonly<Record<string, string>> = {
   "Host não permitido: {0}. Abra o Habblaud por http://localhost (ou pelo IP) ": "Hôte non autorisé : {0}. Ouvrez Habblaud via http://localhost (ou par l'IP) ",
   "ou libere o nome em HABBLAUD_ALLOWED_HOSTS.": "ou autorisez le nom dans HABBLAUD_ALLOWED_HOSTS.",
   "Origem não permitida.": "Origine non autorisée.",
+  "modo portal (HABBLAUD_PORTAL): a instância é só leitura": "Mode portail (HABBLAUD_PORTAL) : l'instance est en lecture seule",
+  "Pedido do portal inválido: o proxy precisa mandar Host local, X-Forwarded-Host e X-Forwarded-Proto.": "Requête du portail non valide : le proxy doit envoyer un Host local, X-Forwarded-Host et X-Forwarded-Proto.",
+  "   Modo portal (HABBLAUD_PORTAL): instância só leitura atrás do Portal do OpenClaw; Habblaud World desligado.": "   Mode portail (HABBLAUD_PORTAL) : instance en lecture seule derrière le Portail d'OpenClaw ; Habblaud World désactivé.",
+  "   Habblaud World: escondido (modo portal).": "   Habblaud World : masqué (mode portail).",
   "Envie o corpo como JSON (Content-Type: application/json).": "Envoyez le corps en JSON (Content-Type: application/json).",
 
   // server/http/sessions.ts

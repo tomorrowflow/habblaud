@@ -12,6 +12,13 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Modo portal para rodar atrás do Portal do OpenClaw.** Com `HABBLAUD_PORTAL=1`, o Habblaud aceita o `Host` e o
+  `Origin` do proxy do Gateway (`X-Forwarded-Host` e `X-Forwarded-Proto`), a instância inteira fica só leitura
+  (terminal, permissões, mensagens, personagem, demo, verificar versão e Novo agente fechados, porque pelo proxy todo
+  pedido chega do próprio computador mesmo vindo de um cliente da rede) e o Habblaud World fica desligado. A página
+  esconde as ações recusadas, `/api/health` traz `portal: true` e as páginas deixam de mandar `X-Frame-Options` para
+  abrir no iframe da Control UI. Desligado por padrão: sem a variável nada muda.
+
 - **Modo demonstração: a fábrica do OpenClaw no escritório.** Com `HABBLAUD_DEMO=1` (ou `?mock=1`), duas salas de
   “quadros” do Workboard aparecem ao lado do escritório simulado, com um roteiro que se repete a cada ~5 minutos: um
   personagem por cartão em andamento (trabalhando ou esperando por você, com o estágio e o título no balão), um

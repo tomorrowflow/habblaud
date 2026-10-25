@@ -98,7 +98,9 @@ de até 200 (inclusive o começo de transcripts longos, lido em segundo plano) v
 Borda (`http/guard.ts`, vale para API, estáticos e Vite): `Host` precisa ser `localhost`/`*.localhost`, um IP
 ou um nome de `HABBLAUD_ALLOWED_HOSTS` (contra DNS rebinding) → senão 403; `POST` em `/api/*` exige
 `Content-Type: application/json` (415) e `Origin` da mesma origem ou local (403), contra CSRF. Respostas JSON
-saem com `nosniff` e `Cross-Origin-Resource-Policy: same-origin`, sem CORS.
+saem com `nosniff` e `Cross-Origin-Resource-Policy: same-origin`, sem CORS. Com `HABBLAUD_PORTAL=1`, o pedido que
+traz `X-Forwarded-Host` (o proxy do Portal do OpenClaw) segue outra regra, descrita em
+[Portal do OpenClaw](#portal-do-openclaw).
 
 ## Versão nova
 
@@ -141,6 +143,38 @@ nomes de `HABBLAUD_ALLOWED_HOSTS` (proxies, túneis) recebem 403. O estado sai e
 `terminal` no `/api/health`. Erros antes do stream respondem JSON `{error}`: 403 (desligado ou acesso que não é
 local), 404 (agente ou transcript desconhecido), 405 (método que não é `GET`), 429 (terminais demais) e 500
 (transcript ilegível).
+
+## Portal do OpenClaw
+
+`HABBLAUD_PORTAL=1` (desligado por padrão; desligado, nada muda) é para o Habblaud rodar atrás de um Portal do Gateway
+do OpenClaw, o proxy reverso que o publica numa origem própria da rede local. O proxy fala com o Habblaud pelo loopback
+com `Host: localhost:<porta>`, apaga os `X-Forwarded-*` que o cliente mandou e põe os seus: `X-Forwarded-Host` (o
+endereço público do portal) e `X-Forwarded-Proto`. O `Origin` do navegador é o do portal.
+
+- **Borda** (`http/guard.ts`): o pedido com `X-Forwarded-Host` só passa se o `Host` for local e trouxer a porta do
+  servidor (`localhost:<porta>`, 127.x ou `[::1]`), `X-Forwarded-Proto` for `http` ou `https` e o `Origin`, quando
+  existe (em qualquer método), for exatamente `<proto>://<X-Forwarded-Host>`. Na API, `Sec-Fetch-Site` de outro site
+  é recusado; `POST` segue exigindo `Content-Type: application/json`. Vale para API, estáticos e `/api/stream`. Pedido
+  sem `X-Forwarded-Host` segue a regra de sempre (um `Host` de fora continua barrado contra DNS rebinding).
+- **Instância só leitura**: pelo proxy todo pedido chega de `127.0.0.1` com `Host` local, mas quem olha é um cliente da
+  rede, então nenhuma trava de "computador local" vale. Ficam fechados, com os mesmos códigos de recurso desligado:
+  o terminal do agente e o do histórico (`/api/agents/:id/terminal`, `/api/sessions/*`), as permissões
+  (`/api/permissions*`), as mensagens (`/api/messages*`, `/api/mod/inbox*`, `/api/codex/bridge/*`), o terminal
+  interativo (`/api/pty/*`, `stop`, `takeover`), o Novo agente e os anexos (`/api/spawn*`), o ditado, as entregas, o
+  personagem (PUT/DELETE) e o renomear salas (403), `/api/world/*` (404, como `HABBLAUD_WORLD=0`) e os auxiliares
+  `/api/host/*` (403). `POST /api/demo` e `POST /api/updates/check` recebem 403. Seguem abertos: snapshot, stream,
+  detalhe do agente, `/api/stats`, a linha do tempo, `/api/updates`, `/api/mod/summary`, `/api/health` e `/api/access`.
+- **Hooks locais**: o registro e a espera de pedidos de permissão (`POST /api/permissions`, `.../wait`) e a caixa de
+  entrada do mod ficam fechados junto, porque só serviriam para alguém responder, e ninguém responde numa instância
+  só leitura (o hook do Claude Code, ao receber 403, deixa a pergunta no terminal). Os eventos do Codex
+  (`POST /api/codex/events`) só observam e seguem abertos a quem fala direto com o Habblaud pelo loopback, e recusados
+  se o pedido traz `X-Forwarded-Host`.
+- **World**: desligado por inteiro, como `HABBLAUD_WORLD=0`, e o servidor loga uma linha ao iniciar.
+- **Interface**: `/api/health` ganha `portal: true` (o campo só existe no modo portal), e `terminal`, `permissions`,
+  `pty` e `messages` saem `false`; `/api/access` sai com `local: false` e tudo `false`, e `meta.terminal` e
+  `meta.world` do snapshot saem desligados, então a página esconde as ações que o servidor recusaria.
+- **Incorporação**: as páginas estáticas não mandam `X-Frame-Options` (o Habblaud nunca manda CSP com
+  `frame-ancestors`), para abrir no iframe da Control UI do OpenClaw. Sem o modo portal, continua `DENY`.
 
 ## Linha do tempo (timelapse)
 
@@ -495,6 +529,7 @@ em `shared/world/city.ts` (fonte da verdade; o servidor do mundo guarda a cópia
 | `HABBLAUD_ACCOUNTS` | — | JSON com metadados das contas vindos do host (Docker): `[{id, configDir, mountDir, short, name, email, organization, plan, color, cachedUsage}]`, casados por `id`, `mountDir` ou `configDir` |
 | `HABBLAUD_USAGE_DIR` | `~/.habblaud/usage` (Docker: `/usage`) | pasta do uso capturado pelo tap de statusline ou pelo mod do Claude Code, relida a cada 5 s |
 | `HABBLAUD_ALLOWED_HOSTS` | — | nomes extras aceitos no `Host`/`Origin` (vírgula); `localhost`, `*.localhost` e IPs sempre valem |
+| `HABBLAUD_PORTAL` | desligado | `1` roda atrás de um Portal do OpenClaw: aceita o `Host`/`Origin` do proxy e deixa a instância só leitura, sem World (ver [Portal do OpenClaw](#portal-do-openclaw)) |
 | `HABBLAUD_WORLD_URL` | `https://server.habblaud.com` | servidor do Habblaud World: só `https://` ou `wss://`, sem caminho; `http://127.0.0.1:*` só no modo dev (recusada, o World fica desligado). O prédio sobe pelo WebSocket na mesma origem (`/v1/socket`) |
 | `HABBLAUD_WORLD` | ligado | `0` (`false`, `off`, `no`) desliga o Habblaud World: rotas 404, nada na interface e nada sai |
 | `HABBLAUD_WORLD_DEV` | desligado (`--dev` liga) | `1` aceita o servidor do mundo em `http://127.0.0.1` ou `ws://127.0.0.1` |

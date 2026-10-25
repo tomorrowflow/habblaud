@@ -70,7 +70,11 @@ export function isNotModified(req: IncomingMessage, etag: string, mtimeMs: numbe
   return false;
 }
 
-export function createStaticHandler(distDir: string): (req: IncomingMessage, res: ServerResponse, pathname: string) => void {
+/**
+ * `embeddable`: no modo portal (HABBLAUD_PORTAL) a página abre num iframe da Control UI do OpenClaw, então não manda
+ * X-Frame-Options (e o Habblaud nunca manda um CSP com frame-ancestors).
+ */
+export function createStaticHandler(distDir: string, opts: { embeddable?: boolean } = {}): (req: IncomingMessage, res: ServerResponse, pathname: string) => void {
   const root = resolve(distDir);
   const index = join(root, 'index.html');
 
@@ -82,7 +86,7 @@ export function createStaticHandler(distDir: string): (req: IncomingMessage, res
       'Last-Modified': new Date(st.mtimeMs).toUTCString(),
       'X-Content-Type-Options': 'nosniff',
       // A página não deve ser embutida em sites de terceiros (clickjacking nas configurações).
-      'X-Frame-Options': 'DENY',
+      ...(opts.embeddable ? {} : { 'X-Frame-Options': 'DENY' }),
       'Referrer-Policy': 'no-referrer',
     };
     if (isNotModified(req, etag, st.mtimeMs)) {

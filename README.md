@@ -721,6 +721,7 @@ Everything works without configuring anything. If you need to adjust something, 
 | `HABBLAUD_USAGE_DIR` | `~/.habblaud/usage` | Where the mod (or the statusline tap) writes usage. |
 | `HABBLAUD_DEMO` | off | `1` turns on demo mode at startup. |
 | `HABBLAUD_ALLOWED_HOSTS` | — | Extra names accepted in the address (e.g. `meu-mac.local`), besides `localhost` and IPs. |
+| `HABBLAUD_PORTAL` | off | `1` runs Habblaud behind an OpenClaw Portal (the Gateway's reverse proxy): it accepts the proxy's `Host`/`Origin` and the whole instance becomes read-only (no terminal, answering, messages, character editing or Habblaud World). See [server/README.md](server/README.md#portal-do-openclaw). |
 | `HABBLAUD_TERMINAL` | on (local access only) | `0` turns off the terminal, answering and sending messages from the office, and the character editor. With the port exposed they're already off, with no way to turn them on. |
 | `HABBLAUD_PTY` | off | `1` turns on the interactive terminal (open, take over and end Claude Code sessions from the office; local access only and outside Docker) and **New agent** (also in Docker, through `npm run codex:bridge`). Read the warning in [Privacy and security](#privacy-and-security). |
 | `HABBLAUD_CLAUDE_BIN` | `claude` from PATH | The Claude Code executable that the interactive terminal and New agent run. |
