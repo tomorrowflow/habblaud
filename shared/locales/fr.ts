@@ -3336,6 +3336,8 @@ export const FR: Readonly<Record<string, string>> = {
   "aguardando aprovação no Gateway{0}": "en attente d'approbation sur le Gateway{0}",
   "Fábrica do OpenClaw: o Gateway pede para aprovar este dispositivo. No computador do Gateway, rode `openclaw devices list` e depois `openclaw devices approve {0}` (ou aprove na Control UI, em Settings → Devices).": "Usine OpenClaw : le Gateway demande d'approuver cet appareil. Sur l'ordinateur du Gateway, lancez `openclaw devices list` puis `openclaw devices approve {0}` (ou approuvez-le dans la Control UI, sous Settings → Devices).",
   "Fábrica do OpenClaw: o Gateway recusou a conexão: {0}": "Usine OpenClaw : le Gateway a refusé la connexion : {0}",
+  "{0} ({1}); confira HABBLAUD_WORKBOARD_TOKEN e reinicie o Habblaud": "{0} ({1}) ; vérifiez HABBLAUD_WORKBOARD_TOKEN et redémarrez Habblaud",
+  "Fábrica do OpenClaw: o Gateway recusou o token; parei de tentar. {0}": "Usine OpenClaw : le Gateway a refusé le jeton ; plus de nouvelles tentatives. {0}",
   "conexão com o Gateway fechada": "connexion au Gateway fermée",
   "o Gateway não respondeu a {0}": "le Gateway n'a pas répondu à {0}",
   "Fábrica do OpenClaw: não foi possível ler o Workboard ({0}).": "Usine OpenClaw : impossible de lire le Workboard ({0}).",
