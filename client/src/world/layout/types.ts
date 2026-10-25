@@ -71,6 +71,8 @@ export interface RugPatch {
   h: number;
   color: string;
   seed: number;
+  /** 'hazard': faixa zebrada amarela e preta pintada no chão (sala da fábrica), sem campo; `color` não vale. */
+  kind?: 'hazard';
 }
 
 export type SpotKind =
@@ -152,6 +154,12 @@ export interface AreaLayout {
   shade?: { x: number; y: number; w: number; h: number };
   /** Retângulo (px) da placa com o nome. */
   signId?: string;
+  /**
+   * Sala da fábrica: onde penduram as placas (px de mundo, como os itens de parede: `cx` = centro, `baseY` = rodapé
+   * da face norte). `queue` ("N na fila") fica logo abaixo da placa com o nome; `trust` ("N de M autônomos"), no lugar
+   * do relógio e do pôster.
+   */
+  factory?: { queue: { cx: number; baseY: number }; trust: { cx: number; baseY: number } };
 }
 
 /** Elemento decorativo externo (árvore, arbusto, poste...) desenhado pelo próprio mundo. */

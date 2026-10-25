@@ -1,7 +1,8 @@
 // A fábrica do OpenClaw no escritório (docs/openclaw-workboard.md, "De onde vêm os dados"): cliente do WebSocket do
 // Gateway (o `WebSocket` global do Node, sem dependência) como dispositivo pareado com `operator.read`. Escuta
-// `plugin.workboard.changed` (só o sinal de "mudou"), relê `workboard.boards.list` e `workboard.cards.list` e entrega ao
-// Office a projeção pura de shared/workboard/, com ids `factory:` (fora de Office.list(), então fora do World).
+// `plugin.workboard.changed` (só o sinal de "mudou"), relê `workboard.boards.list`, `workboard.cards.list` e
+// `workboard.overview` (a autonomia da semana) e entrega ao Office a projeção pura de shared/workboard/, com ids
+// `factory:` (fora de Office.list(), então fora do World).
 //
 // Handshake portado de docs/gateway/protocol/handshake.md e auth.md, docs/gateway/clients.md ("Choose scopes and pair
 // the device", passos 1 a 5) e packages/gateway-client/src (client.ts, buildConnect e buildDeviceConnectParams;
@@ -9,6 +10,7 @@
 // desafio como `signedAt`, manda `connect` (protocolo 4) e guarda `hello-ok.auth.deviceToken`. Com o token do
 // dispositivo guardado, ele vai em `auth.deviceToken` (e é o token assinado); recusado, volta ao segredo compartilhado.
 import { tr } from '../../shared/i18n';
+import { FACTORY_ACCOUNT_ID } from '../../shared/workboard/account';
 import { parseFrame } from '../../shared/workboard/parse';
 import { FACTORY_ID_PREFIX, projectFactory, type FactoryProjection } from '../../shared/workboard/project';
 import type { FactoryFrame } from '../../shared/workboard/model';
@@ -32,8 +34,6 @@ const CLIENT_ID = 'gateway-client';
 const CLIENT_MODE = 'backend';
 const ROLE = 'operator';
 const SCOPES = ['operator.read'];
-/** Conta (AccountInfo.id) dos personagens da fábrica: não é uma conta deste computador. */
-const FACTORY_ACCOUNT = 'openclaw';
 
 export const WORKBOARD_TIMING = {
   /** Espera depois de um `changed` antes de reler (junta rajadas). */
@@ -364,8 +364,12 @@ export class WorkboardService {
         if (!link?.ready) return;
         const boards = await this.request(link, 'workboard.boards.list', {});
         const cards: Obj = {};
-        for (const b of parseFrame({ boards }).boards) cards[b.id] = await this.request(link, 'workboard.cards.list', { boardId: b.id });
-        this.frame = parseFrame({ boards, cards });
+        const overviews: Obj = {};
+        for (const b of parseFrame({ boards }).boards) {
+          cards[b.id] = await this.request(link, 'workboard.cards.list', { boardId: b.id });
+          overviews[b.id] = await this.overview(link, b.id);
+        }
+        this.frame = parseFrame({ boards, cards, overviews });
         this.project();
       } while (this.readAgain);
     } catch (err) {
@@ -375,13 +379,23 @@ export class WorkboardService {
     }
   }
 
+  /** A overview só dá a placa de autonomia: sem ela (Gateway sem o método, erro), a sala fica sem a placa. */
+  private async overview(link: Link, boardId: string): Promise<unknown> {
+    try {
+      return await this.request(link, 'workboard.overview', { boardId });
+    } catch (err) {
+      log.warnOnce('workboard-overview', tr('Fábrica do OpenClaw: sem a autonomia dos quadros (workboard.overview: {0}).', [errMsg(err)]));
+      return undefined;
+    }
+  }
+
   private project(): void {
     const now = this.now();
     if (this.frame && this.downSince !== undefined && now - this.downSince >= this.t.staleMs) this.frame = undefined;
     const view = this.frame
       ? projectFactory(this.frame, {
           idPrefix: FACTORY_ID_PREFIX,
-          account: FACTORY_ACCOUNT,
+          account: FACTORY_ACCOUNT_ID,
           now,
           createdAt: this.createdAt,
           avoidNames: new Set(this.o.office.list().map((a) => a.name)),

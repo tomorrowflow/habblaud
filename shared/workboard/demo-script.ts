@@ -1,11 +1,13 @@
 // Roteiro do modo demonstração: cartões que andam por filas, construção, verificação (com uma reprovação e o retrabalho),
-// revisão e publicação, no formato das respostas do Gateway (`workboard.boards.list`, `workboard.cards.list`).
+// revisão e publicação, no formato das respostas do Gateway (`workboard.boards.list`, `workboard.cards.list` e
+// `workboard.overview`).
 // Escrito à mão a partir do contrato @openclaw/workboard-contract, não gravado de um Gateway.
 
 /** Um instante bruto, como `parseFrame` o recebe. */
 export interface RawFrame {
   boards: object[];
   cards: Record<string, { cards: object[]; statuses: readonly string[] }>;
+  overviews: Record<string, object>;
 }
 
 interface ScriptCard {
@@ -23,6 +25,14 @@ const BOARDS = [
   { id: 'loja', name: 'Loja online' },
   { id: 'pagamentos', name: 'API de pagamentos' },
 ] as const;
+
+/** Aceitos na semana antes do roteiro começar (os cartões do roteiro somam ao chegar a `published` ou `done`). */
+const WEEK_BEFORE: Record<string, { accepted: number; autonomous: number }> = {
+  loja: { accepted: 4, autonomous: 3 },
+  pagamentos: { accepted: 2, autonomous: 1 },
+};
+/** Toques humanos que tiram o cartão da conta dos autônomos (retrabalho depois de uma reprovação, bloqueio). */
+const TOUCHED = /:fail$|^blocked$/;
 
 const STATUSES = ['triage', 'backlog', 'todo', 'scheduled', 'ready', 'running', 'review', 'blocked', 'done'] as const;
 
@@ -150,11 +160,24 @@ export function demoFrame(index: number, startedAt: number, stepMs: number): Raw
     while (first > 0 && card.beats[first - 1] === beat) first--;
     cards[card.boardId].cards.push(rawCard(card, beat, startedAt - (index - first) * stepMs, i));
   });
+  const overviews: RawFrame['overviews'] = {};
+  for (const b of BOARDS) {
+    const week = { weekStart: startedAt - 86_400_000, ...WEEK_BEFORE[b.id] };
+    for (const card of CARDS) {
+      if (card.boardId !== b.id || card.probe) continue;
+      const beats = card.beats.slice(0, index + 1);
+      const kind = beats[index].split(':')[0];
+      if (kind !== 'published' && kind !== 'done') continue;
+      week.accepted++;
+      if (!beats.some((x) => TOUCHED.test(x))) week.autonomous++;
+    }
+    overviews[b.id] = { boardId: b.id, generatedAt: startedAt, needsYou: [], inFlight: [], shipped: [], insights: [], open: {}, week };
+  }
   const boards = BOARDS.map((b) => {
     const list = cards[b.id].cards as { status: string }[];
     const byStatus: Record<string, number> = {};
     for (const c of list) byStatus[c.status] = (byStatus[c.status] ?? 0) + 1;
     return { ...b, kind: 'cards', total: list.length, active: list.filter((c) => c.status !== 'done').length, archived: 0, byStatus };
   });
-  return { boards, cards };
+  return { boards, cards, overviews };
 }

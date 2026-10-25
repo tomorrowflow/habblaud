@@ -228,12 +228,13 @@ export function buildAreaVis(art: ArtModule, layout: AreaLayout, room: RoomState
   for (const rug of layout.rugs) {
     const color = seasonalRugColor(theme, rug.color);
     try {
-      art.drawRug(fctx, rug.x, rug.y, rug.w, rug.h, color, rug.seed);
+      art.drawRug(fctx, rug.x, rug.y, rug.w, rug.h, color, rug.seed, rug.kind);
     } catch {
       fctx.fillStyle = color;
       fctx.fillRect(rug.x, rug.y, rug.w, rug.h);
     }
-    decorateSeasonalRug(fctx, theme, rug);
+    // a faixa zebrada não tem campo: os motivos da estação ficariam soltos no cimento
+    if (!rug.kind) decorateSeasonalRug(fctx, theme, rug);
   }
 
   // ---- paredes + itens de parede fixos

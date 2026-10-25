@@ -109,8 +109,34 @@ describe('WorkboardService', () => {
     expect(s.agents.some((a) => a.id === 'factory:workboard:wb-1')).toBe(false);
     expect(s.rooms.find((r) => r.id === 'factory:workboard:pagamentos')?.name).toBe('API de pagamentos');
     expect(svc.health().boards).toBe(2);
-    expect(gw.requests.slice(reads).map((r) => r.method)).toEqual(['workboard.boards.list', 'workboard.cards.list', 'workboard.cards.list']);
-    expect(gw.requests.slice(reads).map((r) => r.params)).toEqual([{}, { boardId: 'loja' }, { boardId: 'pagamentos' }]);
+    expect(gw.requests.slice(reads).map((r) => r.method)).toEqual([
+      'workboard.boards.list',
+      'workboard.cards.list',
+      'workboard.overview',
+      'workboard.cards.list',
+      'workboard.overview',
+    ]);
+    expect(gw.requests.slice(reads).map((r) => r.params)).toEqual([{}, { boardId: 'loja' }, { boardId: 'loja' }, { boardId: 'pagamentos' }, { boardId: 'pagamentos' }]);
+  });
+
+  it('a autonomia da semana (workboard.overview) chega à sala; sem a overview, a sala fica sem a placa', async () => {
+    const { gw, make, snap } = await setup();
+    gw.boards.push({ id: 'pagamentos', name: 'API de pagamentos' });
+    gw.cards.pagamentos = [card('wb-9', 'verifying', 'Idempotência')];
+    // `loja` sem overview: o Gateway responde "método desconhecido", como um Workboard sem a Factory overview.
+    gw.overviews.pagamentos = { boardId: 'pagamentos', generatedAt: NOW, needsYou: [], inFlight: [], shipped: [], insights: [], open: {}, week: { weekStart: NOW, accepted: 5, autonomous: 3 } };
+    const svc = make();
+    svc.start();
+    await waitFor(() => gw.pending.size === 1, 'pedido');
+    gw.approve();
+    await waitFor(() => snap().rooms.some((r) => r.id === 'factory:workboard:pagamentos'), 'projetado');
+    const rooms = Object.fromEntries(snap().rooms.map((r) => [r.id, r.factory]));
+    expect(rooms['factory:workboard:pagamentos']).toEqual({ boardId: 'pagamentos', queued: 0, trust: { autonomous: 3, accepted: 5 } });
+    expect(rooms['factory:workboard:loja']).toEqual({ boardId: 'loja', queued: 0 });
+
+    gw.overviews.pagamentos = { ...gw.overviews.pagamentos, week: { weekStart: NOW, accepted: 6, autonomous: 4 } };
+    gw.changed();
+    await waitFor(() => snap().rooms.find((r) => r.id === 'factory:workboard:pagamentos')?.factory?.trust?.accepted === 6, 'autonomia relida');
   });
 
   it('reconexão: usa o token do dispositivo guardado (sem pedir pareamento); revogado, volta ao segredo compartilhado', async () => {

@@ -393,8 +393,8 @@ do Codex levam `provider: 'codex'` (ausente = Claude Code). Ids: `<conta>:<threa
 
 Desligada por padrão; `HABBLAUD_WORKBOARD_URL` (ex.: `ws://127.0.0.1:18789`) liga. `workboard/service.ts` conecta ao
 WebSocket do Gateway do OpenClaw como um dispositivo com o papel `operator` e só o escopo `operator.read`, escuta
-`plugin.workboard.changed` e relê `workboard.boards.list` e `workboard.cards.list` (meio segundo depois de cada mudança e a
-cada reconexão). Os quadros viram salas e os cartões em andamento viram personagens (`shared/workboard/`, ids
+`plugin.workboard.changed` e relê `workboard.boards.list`, `workboard.cards.list` e `workboard.overview` (meio segundo
+depois de cada mudança e a cada reconexão). Os quadros viram salas e os cartões em andamento viram personagens (`shared/workboard/`, ids
 `factory:workboard:…`): ficam no snapshot e na gaveta, mas fora de `Office.list()`, então fora do Habblaud World, das
 mensagens, das permissões, do editor de personagem e do Meu dia. Quem espera no Workboard entra no
 `GET /api/mod/summary` com `answerable: false` (a decisão continua no Workboard). Com o Gateway fora do ar há 60 s, a
@@ -408,6 +408,12 @@ fábrica some do escritório.
   no navegador. O par de chaves Ed25519 do dispositivo e o token que o Gateway emite depois do pareamento ficam em
   `<dataDir>/workboard.json` (modo 600). Com esse token guardado, a conexão usa ele; recusado, volta ao segredo
   compartilhado. Apagar o arquivo pede um pareamento novo.
+- **Placas da sala.** `RoomInfo.factory.queued` (cartões na fila) e `RoomInfo.factory.trust` (`{autonomous, accepted}`:
+  o `week` de `workboard.overview`, o mesmo "N of M autonomous this week" do cabeçalho da Factory overview; só com algum
+  cartão aceito na semana). Um Gateway sem `workboard.overview` deixa a sala sem a placa da autonomia.
+- **Link "Abrir cartão".** Com `HABBLAUD_WORKBOARD_UI_URL` (a Control UI, `http://` ou `https://`), o snapshot leva a
+  base em `meta.workboardUi` e a gaveta de um personagem da fábrica abre o cartão em outra aba
+  (`shared/workboard/links.ts`, `cardUrl`). Só navegação: vale também no modo portal.
 - **`/api/health`.** `workboard: {state, boards?, error?}`, com `state` `off`, `connecting`, `pairing`, `connected` ou
   `error`; `boards` = quadros lidos (conectado); `error` = o último motivo (erro ou pareamento pendente).
 
@@ -556,6 +562,7 @@ em `shared/world/city.ts` (fonte da verdade; o servidor do mundo guarda a cópia
 | `HABBLAUD_WORLD` | ligado | `0` (`false`, `off`, `no`) desliga o Habblaud World: rotas 404, nada na interface e nada sai |
 | `HABBLAUD_WORKBOARD_URL` | — | WebSocket do Gateway do OpenClaw (`ws://` ou `wss://`); liga a fábrica do OpenClaw no escritório |
 | `HABBLAUD_WORKBOARD_TOKEN` | — | segredo compartilhado do Gateway, para o primeiro pareamento (nunca vai para log nem para o navegador) |
+| `HABBLAUD_WORKBOARD_UI_URL` | — | endereço da Control UI do OpenClaw (`http://` ou `https://`, sem usuário, senha nem parâmetros): liga o link "Abrir cartão" na gaveta dos personagens da fábrica |
 | `HABBLAUD_WORLD_DEV` | desligado (`--dev` liga) | `1` aceita o servidor do mundo em `http://127.0.0.1` ou `ws://127.0.0.1` |
 
 No hook de permissão (ambiente do Claude Code; os argumentos `--port`/`--timeout` gravados pelo instalador têm

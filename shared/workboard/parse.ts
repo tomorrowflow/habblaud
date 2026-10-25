@@ -1,6 +1,6 @@
-// Borda do Gateway: converte as respostas de `workboard.boards.list` e `workboard.cards.list` (JSON de fora, não
-// confiável) no modelo mínimo. Tolerante: campos desconhecidos são ignorados, entradas malformadas caem, nunca lança.
-import { STAGE_KINDS, VERDICTS, type FactoryBoard, type FactoryCard, type FactoryFrame, type StageKind, type Verdict } from './model';
+// Borda do Gateway: converte as respostas de `workboard.boards.list`, `workboard.cards.list` e `workboard.overview`
+// (JSON de fora, não confiável) no modelo mínimo. Tolerante: campos desconhecidos são ignorados, entradas malformadas caem, nunca lança.
+import { STAGE_KINDS, VERDICTS, type FactoryBoard, type FactoryCard, type FactoryFrame, type FactoryTrust, type StageKind, type Verdict } from './model';
 
 type Obj = Record<string, unknown>;
 
@@ -14,6 +14,17 @@ function listOf(v: unknown, key: string): unknown[] {
   if (Array.isArray(v)) return v;
   if (isObj(v) && Array.isArray(v[key])) return v[key] as unknown[];
   return [];
+}
+
+const count = (v: unknown): number | undefined => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : undefined);
+
+/** `week` de `workboard.overview` (WorkboardTrustWeek): só as duas contagens, inteiras e coerentes. */
+function parseTrust(raw: unknown): FactoryTrust | undefined {
+  const week = isObj(raw) && isObj(raw.week) ? raw.week : undefined;
+  const autonomous = count(week?.autonomous);
+  const accepted = count(week?.accepted);
+  if (autonomous === undefined || accepted === undefined || autonomous > accepted) return undefined;
+  return { autonomous, accepted };
 }
 
 function parseBoard(raw: unknown): FactoryBoard | undefined {
@@ -69,17 +80,21 @@ function parseCard(raw: unknown, boardId: string): FactoryCard | undefined {
 }
 
 /**
- * `raw`: `{ boards, cards }`, com `boards` como em `workboard.boards.list` e `cards` por `boardId`, cada um como em
- * `workboard.cards.list` (a lista, ou `{ cards }`). Cartões de quadros desconhecidos caem.
+ * `raw`: `{ boards, cards, overviews? }`, com `boards` como em `workboard.boards.list`, e `cards` e `overviews` por
+ * `boardId`, cada um como em `workboard.cards.list` (a lista, ou `{ cards }`) e em `workboard.overview`. Cartões de
+ * quadros desconhecidos caem.
  */
 export function parseFrame(raw: unknown): FactoryFrame {
   const frame: FactoryFrame = { boards: [], cards: [] };
   if (!isObj(raw)) return frame;
   const seen = new Set<string>();
+  const overviews = isObj(raw.overviews) ? raw.overviews : {};
   for (const b of listOf(raw.boards, 'boards')) {
     const board = parseBoard(b);
     if (board && !seen.has(board.id)) {
       seen.add(board.id);
+      const trust = Object.hasOwn(overviews, board.id) ? parseTrust(overviews[board.id]) : undefined;
+      if (trust) board.trust = trust;
       frame.boards.push(board);
     }
   }

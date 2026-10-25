@@ -212,8 +212,11 @@ export interface RoomInfo {
   createdAt: number;
   /** Efeito visual temporário na sala (eventos do GitHub detectados nos transcripts; ver shared/github.ts). */
   effect?: RoomEffect;
-  /** Presente nas salas da fábrica (um quadro do Workboard): `queued` = cartões na fila, que não têm personagem. */
-  factory?: { boardId: string; queued: number };
+  /**
+   * Presente nas salas da fábrica (um quadro do Workboard): `queued` = cartões na fila, que não têm personagem;
+   * `trust` = aceitos na semana e quantos deles sem toque humano (a placa "N de M autônomos"), só com algum aceito.
+   */
+  factory?: { boardId: string; queued: number; trust?: { autonomous: number; accepted: number } };
 }
 
 /**
@@ -382,6 +385,11 @@ export interface OfficeSnapshot {
      * e à linha do tempo). Ausente nos testes e no timelapse.
      */
     world?: WorldMeta;
+    /**
+     * Control UI do OpenClaw (HABBLAUD_WORKBOARD_UI_URL, sem barra no fim): base do link "Abrir cartão" dos
+     * personagens da fábrica (shared/workboard/links.ts). Ausente = sem o link.
+     */
+    workboardUi?: string;
   };
 }
 

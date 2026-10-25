@@ -236,3 +236,46 @@ describe('itens de parede', () => {
     for (const room of roomsFor([1, 3, 7])) expect(room.wallItems.some((w) => w.kind === 'door_frame'), room.id).toBe(true);
   });
 });
+
+describe('sala da fábrica', () => {
+  // dos dois lados do corredor, espelhadas ou não
+  const seeds = [3, 4, 11, 12, 20, 21];
+  const factoryRooms = () => seeds.flatMap((seed) => [0, 1].map((slot) => layoutProjectRoom({ id: `/f/${seed}/${slot}`, slot, seed, factory: true }, theme)));
+
+  it('chão de cimento, faixa zebrada, sem relógio nem pôster e com o lugar das placas', () => {
+    for (const room of factoryRooms()) {
+      expect(room.floors.map((f) => f.kind), room.id).toEqual(['concrete']);
+      expect(room.rugs.filter((r) => r.kind === 'hazard'), room.id).toHaveLength(1);
+      expect(room.wallItems.some((w) => w.kind === 'clock' || w.kind === 'poster'), room.id).toBe(false);
+      expect(room.factory, room.id).toBeDefined();
+      expect(hiddenWallItems(room), room.id).toEqual([]);
+    }
+  });
+
+  it('o quadrinho da autonomia (até 45 px) cabe na parede sem encostar na placa nem na janela', () => {
+    for (const room of factoryRooms()) {
+      const t = room.factory!.trust.cx;
+      const [l, r] = [t - 22.5, t + 22.5];
+      const wall = { x0: (room.rect.x + 0.5) * TILE, x1: (room.rect.x + 15.5) * TILE };
+      expect(l >= wall.x0 && r <= wall.x1, room.id).toBe(true);
+      // largura ocupada de cada item: a placa desenha 42 px e a janela, 28
+      const width: Partial<Record<FurnitureKind, number>> = { sign: 42, window: 28, whiteboard: 44, light_switch: 6, door_frame: 32 };
+      for (const w of room.wallItems.filter((x) => x.on === 'face' && width[x.kind])) {
+        const half = width[w.kind]! / 2;
+        expect(r <= w.cx - half || l >= w.cx + half, `${room.id} ${w.kind}`).toBe(true);
+      }
+    }
+  });
+
+  it('o resto da sala (lugares e móveis) sai igual ao de uma sala comum da mesma semente', () => {
+    for (const seed of seeds) {
+      const plain = layoutProjectRoom({ id: '/x', slot: 0, seed }, theme);
+      const factory = layoutProjectRoom({ id: '/x', slot: 0, seed, factory: true }, theme);
+      const spots = (a: AreaLayout) => a.spots.map((s) => [s.kind, s.x, s.y, s.dir]);
+      // só a planta alta do canto da parede norte sai na fábrica
+      const furniture = (a: AreaLayout) => a.furniture.filter((f) => !(f.kind === 'plant_tall' && f.ty === a.rect.y + 2)).map((f) => [f.kind, f.variant, f.tx, f.ty]);
+      expect(spots(factory)).toEqual(spots(plain));
+      expect(furniture(factory)).toEqual(furniture(plain));
+    }
+  });
+});

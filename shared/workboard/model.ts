@@ -21,9 +21,21 @@ export type StageKind = (typeof STAGE_KINDS)[number];
 export const VERDICTS = ['pass', 'fail', 'error'] as const;
 export type Verdict = (typeof VERDICTS)[number];
 
+/**
+ * A autonomia da semana do quadro, a mesma do cabeçalho da Factory overview do Workboard ("N of M autonomous this
+ * week"): `week` de `workboard.overview`, contada como em `workboard.cards.trust`. Autônomo = aceito sem nenhum toque
+ * humano (sem retrabalho, commit de fora nem bloqueio).
+ */
+export interface FactoryTrust {
+  autonomous: number;
+  accepted: number;
+}
+
 export interface FactoryBoard {
   id: string;
   name: string;
+  /** Ausente quando o Gateway não respondeu a `workboard.overview` (ou respondeu fora do formato). */
+  trust?: FactoryTrust;
 }
 
 export interface FactoryCard {

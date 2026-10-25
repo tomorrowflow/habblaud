@@ -131,6 +131,7 @@ const office = new Office({
   ptys: () => (late.ptys ? { status: late.ptys.status(), list: late.ptys.list() } : { status: { enabled: false, reason: late.ptyOff ?? tr('desligado') }, list: [] }),
   updates: () => updates.status(),
   world: () => world?.meta() ?? { enabled: false, configured: false, state: 'off' },
+  workboardUi: config.workboardUi,
 });
 // Fontes de agentes, uma por ferramenta (sources/source.ts): a do Claude Code e, depois dela, a do Codex (quando há
 // pastas do Codex; HABBLAUD_CODEX=0 desliga), com o histórico dela no HistorySet abaixo e as contas registradas por
@@ -537,6 +538,7 @@ server.listen(config.port, config.host, () => {
     );
   }
   if (config.workboardWarning) log.warn(`   ${config.workboardWarning}.`);
+  if (config.workboardUiWarning) log.warn(`   ${config.workboardUiWarning}.`);
   log.info(
     config.workboard
       ? tr('   Fábrica do OpenClaw: conectando ao Gateway em {0}{1}.', [config.workboard.url, config.workboard.token ? '' : tr(' (sem HABBLAUD_WORKBOARD_TOKEN)')])

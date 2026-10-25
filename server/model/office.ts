@@ -81,6 +81,8 @@ export interface OfficeDeps {
   ptys?: () => { status: PtyStatus; list: PtyInfo[] };
   /** Habblaud World (WorldService.meta; ver OfficeSnapshot.meta.world). */
   world?: () => WorldMeta;
+  /** Control UI do OpenClaw (ServerConfig.workboardUi; ver OfficeSnapshot.meta.workboardUi). */
+  workboardUi?: string;
   now?: () => number;
 }
 
@@ -1036,6 +1038,7 @@ export class Office {
         ...(ptys ? { pty: ptys.status } : {}),
         updates: this.deps.updates?.(),
         ...(this.deps.world ? { world: this.deps.world() } : {}),
+        ...(this.deps.workboardUi ? { workboardUi: this.deps.workboardUi } : {}),
       },
     };
   }

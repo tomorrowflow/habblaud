@@ -47,6 +47,7 @@ import { SceneSwitch, type CitySceneHost } from './world/scene-switch';
 import { worldSource } from '../net/world';
 import { FreeArea } from './viewport';
 import { tr } from '../../../shared/i18n';
+import { findAccount } from '../../../shared/workboard/account';
 
 /** Relógio dos tempos relativos ("há 5 s"). */
 const CLOCK_MS = 5_000;
@@ -100,7 +101,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi,
       invalidate();
     },
     now: () => timelapse?.replayTime ?? Date.now() + skew,
-    account: (id) => store.snapshot?.accounts.find((a) => a.id === id),
+    account: (id) => findAccount(store.snapshot?.accounts, id),
     agent: (id) => store.agent(id),
     selection: () => selection,
     select(sel, opts) {

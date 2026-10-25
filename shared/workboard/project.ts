@@ -138,7 +138,10 @@ export function projectFactory(frame: FactoryFrame, o: ProjectOptions): FactoryP
     const queued = mine.filter((c) => c.stage && STAGE_RULES[c.stage].place.kind === 'queue').length;
     const effect = effectOf(mine, o);
     if (!queued && !effect && !agents.some((a) => a.roomId === id)) continue;
-    const room: FactoryRoom = { id, name: board.name, path: `workboard:${board.id}`, seed: hash32(id), createdAt: o.createdAt, factory: { boardId: board.id, queued } };
+    const factory: NonNullable<RoomInfo['factory']> = { boardId: board.id, queued };
+    // "0 de 0 autônomos" não diz nada: a placa só aparece com algum cartão aceito na semana.
+    if (board.trust?.accepted) factory.trust = { ...board.trust };
+    const room: FactoryRoom = { id, name: board.name, path: `workboard:${board.id}`, seed: hash32(id), createdAt: o.createdAt, factory };
     if (effect) room.effect = effect;
     rooms.push(room);
   }

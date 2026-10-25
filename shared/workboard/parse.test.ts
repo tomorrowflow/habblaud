@@ -105,3 +105,44 @@ describe('workboard: leitura das respostas do Gateway', () => {
     });
   });
 });
+
+/** Uma resposta de `workboard.overview` no formato de WorkboardOverviewResult (@openclaw/workboard-contract). */
+const overview = (week: object) => ({
+  boardId: 'b1',
+  generatedAt: 1_700_000_000_000,
+  needsYou: [{ cardId: 'c9', boardId: 'b1', title: 'Pedido', reason: 'questions', since: 1 }],
+  inFlight: [],
+  shipped: [],
+  insights: [],
+  open: { running: 1, todo: 2 },
+  week,
+});
+
+describe('workboard: autonomia da semana (workboard.overview)', () => {
+  it('lê a autonomia de `week`, ignorando o resto da overview', () => {
+    const f = parseFrame({
+      boards: [board('b1'), board('b2')],
+      cards: {},
+      overviews: { b1: overview({ weekStart: 1, accepted: 5, autonomous: 3, medianLeadTimeMs: 9 }), b2: overview({ weekStart: 1, accepted: 0, autonomous: 0 }) },
+    });
+    expect(f.boards).toEqual([
+      { id: 'b1', name: 'Quadro b1', trust: { autonomous: 3, accepted: 5 } },
+      { id: 'b2', name: 'Quadro b2', trust: { autonomous: 0, accepted: 0 } },
+    ]);
+  });
+
+  it('sem overview ou com overview malformada, o quadro fica sem autonomia', () => {
+    const bad = [undefined, null, 'x', [], {}, { week: null }, { week: { accepted: 5 } }, { week: { accepted: '5', autonomous: 3 } }, { week: { accepted: 2, autonomous: 3 } }, { week: { accepted: -1, autonomous: 0 } }, { week: { accepted: 2.5, autonomous: 1 } }, { week: { accepted: Infinity, autonomous: 1 } }];
+    for (const o of bad) {
+      const f = parseFrame({ boards: [board('b1')], cards: {}, overviews: { b1: o } });
+      expect(f.boards).toEqual([{ id: 'b1', name: 'Quadro b1' }]);
+    }
+    expect(parseFrame({ boards: [board('b1')], cards: {}, overviews: 'lixo' }).boards).toEqual([{ id: 'b1', name: 'Quadro b1' }]);
+    expect(parseFrame({ boards: [board('b1')], cards: {} }).boards).toEqual([{ id: 'b1', name: 'Quadro b1' }]);
+  });
+
+  it('a overview de um quadro que não está na lista não cria quadro', () => {
+    const f = parseFrame({ boards: [board('b1')], cards: {}, overviews: { outro: overview({ accepted: 1, autonomous: 1 }), toString: overview({ accepted: 1, autonomous: 1 }) } });
+    expect(f.boards).toEqual([{ id: 'b1', name: 'Quadro b1' }]);
+  });
+});

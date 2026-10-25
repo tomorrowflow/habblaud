@@ -38,6 +38,15 @@ describe('workboard: roteiro do demo', () => {
     expect(f.cards.some((c) => c.stage === undefined)).toBe(true);
   });
 
+  it('a autonomia da semana sobe quando um cartão é aceito, e só conta como autônomo o que ninguém tocou', () => {
+    const trust = (i: number) => Object.fromEntries(parseFrame(demoFrame(i, T0, DEMO_FRAME_MS)).boards.map((b) => [b.id, b.trust]));
+    expect(trust(0)).toEqual({ loja: { accepted: 4, autonomous: 3 }, pagamentos: { accepted: 2, autonomous: 1 } });
+    // wb-101 (publicado no quadro 12) passou por retrabalho; wb-201 (publicado no 11) não.
+    expect(trust(12)).toEqual({ loja: { accepted: 5, autonomous: 3 }, pagamentos: { accepted: 3, autonomous: 2 } });
+    // wb-202 termina depois de bloqueado; wb-102 sem toque.
+    expect(trust(15)).toEqual({ loja: { accepted: 6, autonomous: 4 }, pagamentos: { accepted: 4, autonomous: 2 } });
+  });
+
   it('o since de um estágio vai até o quadro em que o cartão entrou nele', () => {
     const at = (i: number) => parseFrame(demoFrame(i, T0 + i * DEMO_FRAME_MS, DEMO_FRAME_MS)).cards.find((c) => c.id === 'wb-101')!;
     expect(at(2).stageSince).toBe(T0 + 2 * DEMO_FRAME_MS);

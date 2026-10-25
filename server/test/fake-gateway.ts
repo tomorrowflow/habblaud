@@ -2,7 +2,8 @@
 // `upgrade` do http (RFC 6455, só texto, como em fake-world.ts), com o que o cliente do Habblaud usa do protocolo:
 // `connect.challenge`, o `connect` com a assinatura Ed25519 conferida de verdade (payload v3), o pareamento (o primeiro
 // `connect` de um dispositivo novo recebe PAIRING_REQUIRED até `approve`), o `hello-ok` com o token do dispositivo, as
-// respostas de `workboard.boards.list` e `workboard.cards.list` e o evento `plugin.workboard.changed`.
+// respostas de `workboard.boards.list`, `workboard.cards.list` e `workboard.overview` e o evento
+// `plugin.workboard.changed`.
 import { createHash, createPublicKey, randomBytes, verify } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
@@ -21,6 +22,8 @@ export interface FakeGateway {
   token: string;
   boards: object[];
   cards: Record<string, object[]>;
+  /** Resposta de `workboard.overview` por quadro; quadro sem entrada = método desconhecido (Gateway antigo). */
+  overviews: Record<string, object>;
   connects: FakeConnect[];
   /** Pedidos de pareamento pendentes (requestId -> deviceId). */
   pending: Map<string, string>;
@@ -74,6 +77,7 @@ export async function startFakeGateway(opts: { token?: string; port?: number; au
     token: opts.token ?? 'segredo-do-gateway',
     boards: [],
     cards: {},
+    overviews: {},
     connects: [],
     pending: new Map(),
     requests: [],
@@ -200,7 +204,7 @@ export async function startFakeGateway(opts: { token?: string; port?: number; au
           type: 'hello-ok',
           protocol: 4,
           server: { version: 'fake', connId: `c${sockets.size}` },
-          features: { methods: ['workboard.boards.list', 'workboard.cards.list'], events: ['plugin.workboard.changed'] },
+          features: { methods: ['workboard.boards.list', 'workboard.cards.list', 'workboard.overview'], events: ['plugin.workboard.changed'] },
           snapshot: {},
           auth: { deviceToken, role: 'operator', scopes: ['operator.read'] },
           policy: { maxPayload: 26214400, maxBufferedBytes: 52428800, tickIntervalMs: 15000 },
@@ -217,6 +221,10 @@ export async function startFakeGateway(opts: { token?: string; port?: number; au
       if (msg.method === 'workboard.cards.list') {
         const boardId = String((msg.params as Obj | undefined)?.boardId);
         return conn.send({ type: 'res', id: msg.id, ok: true, payload: { cards: fake.cards[boardId] ?? [], revision: { epoch: 'fake', revision: seq, boardId } } });
+      }
+      if (msg.method === 'workboard.overview') {
+        const overview = fake.overviews[String((msg.params as Obj | undefined)?.boardId)];
+        if (overview) return conn.send({ type: 'res', id: msg.id, ok: true, payload: overview });
       }
       fail(msg.id, 'UNKNOWN_METHOD', 'unknown method');
     };

@@ -21,6 +21,7 @@ import { hash32, mulberry32 } from '../hash';
 import { describeMessage, MESSAGE_TOOL } from '../messages';
 import { pickName } from '../names';
 import { demoGitHubEvent } from './github';
+import { FACTORY_ACCOUNT_ID } from '../workboard/account';
 import { FactoryDemo } from '../workboard/demo';
 import type { FactoryProjection } from '../workboard/project';
 import { demoCodexPermission, demoPermission, type DemoPermissionKind } from './permission';
@@ -303,7 +304,7 @@ export class DemoSimulator {
     if (first) this.startBackgroundShells(first, now, true);
     this.nextSpawnAt = now + this.ms(20_000, 40_000);
     if (opts.factory) {
-      this.factory = new FactoryDemo({ idPrefix: this.prefix || 'demo:', account: this.accounts[0].id, speed: this.speed }, now);
+      this.factory = new FactoryDemo({ idPrefix: this.prefix || 'demo:', account: FACTORY_ACCOUNT_ID, speed: this.speed }, now);
       this.syncFactory(now);
     }
     // Descarta o feed/avisos de abertura.

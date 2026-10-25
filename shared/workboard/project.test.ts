@@ -194,3 +194,24 @@ describe('workboard: contagem da fila', () => {
     expect(p.agents).toHaveLength(1);
   });
 });
+
+describe('workboard: placa de autonomia', () => {
+  const withTrust = (trust: { autonomous: number; accepted: number } | undefined, ...cards: FactoryCard[]): FactoryFrame => ({
+    boards: [{ id: 'b1', name: 'Loja', ...(trust ? { trust } : {}) }],
+    cards,
+  });
+
+  it('a sala leva a autonomia da semana do quadro', () => {
+    const p = projectFactory(withTrust({ autonomous: 3, accepted: 5 }, card('r', 'running'), card('q', 'queued')), opts());
+    expect(p.rooms[0].factory).toEqual({ boardId: 'b1', queued: 1, trust: { autonomous: 3, accepted: 5 } });
+  });
+
+  it('sem cartão aceito na semana (ou sem a overview), nada de placa', () => {
+    expect(projectFactory(withTrust({ autonomous: 0, accepted: 0 }, card('r', 'running')), opts()).rooms[0].factory).toEqual({ boardId: 'b1', queued: 0 });
+    expect(projectFactory(withTrust(undefined, card('r', 'running')), opts()).rooms[0].factory).toEqual({ boardId: 'b1', queued: 0 });
+  });
+
+  it('a autonomia sozinha não abre a sala de um quadro parado', () => {
+    expect(projectFactory(withTrust({ autonomous: 2, accepted: 2 }, card('d', 'done')), opts()).rooms).toEqual([]);
+  });
+});

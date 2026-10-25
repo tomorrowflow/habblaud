@@ -60,6 +60,7 @@ import {
   updateStatusDot,
 } from './widgets';
 import { tr } from '../../../shared/i18n';
+import { factoryCardUrl } from '../../../shared/workboard/links';
 
 /** Itens da linha do tempo mostrados de início; "Mostrar mais" acrescenta outro tanto. */
 const TIMELINE_STEP = 15;
@@ -264,6 +265,8 @@ class AgentView {
   private linesPlus: HTMLElement;
   private linesMinus: HTMLElement;
   private termRo: HTMLElement;
+  /** "Abrir cartão" no Workboard: personagens da fábrica, com a Control UI configurada (HABBLAUD_WORKBOARD_UI_URL). */
+  private cardLink: HTMLAnchorElement;
 
   constructor(
     private ctx: UiContext,
@@ -320,6 +323,14 @@ class AgentView {
     );
 
     this.termWhy = h('p', { class: 'ui-term-cta__why', hidden: true, attrs: { role: 'status' } });
+    // Só navegação (outra aba): vale também no modo portal, que é só leitura.
+    this.cardLink = h('a', {
+      class: 'ui-btn ui-card-link',
+      text: tr('Abrir cartão'),
+      title: tr('Abrir o cartão no Workboard do OpenClaw (outra aba)'),
+      hidden: true,
+      attrs: { target: '_blank', rel: 'noopener noreferrer' },
+    });
 
     this.alertText = h('p', { class: 'ui-alert__text' });
     this.alertQuestions = h('div', { class: 'ui-ask', hidden: true });
@@ -411,6 +422,7 @@ class AgentView {
       this.title,
       this.gone,
       statusRow,
+      this.cardLink,
       this.termBtn,
       this.termWhy,
       this.alert,
@@ -565,7 +577,13 @@ class AgentView {
     const following = this.ctx.world.getOptions().followSelected;
     setAttr(this.followBtn, 'aria-pressed', String(following));
     this.followBtn.classList.toggle('is-on', following);
-    this.renderTerminalButton(!!live);
+    // Personagem da fábrica: o cartão roda num nó do OpenClaw, sem sessão aqui para abrir no terminal.
+    const cardUrl = factoryCardUrl(a, this.ctx.store.snapshot?.meta.workboardUi);
+    setHidden(this.cardLink, !cardUrl);
+    setAttr(this.cardLink, 'href', cardUrl);
+    setHidden(this.termBtn, !!a.factory);
+    if (a.factory) setHidden(this.termWhy, true);
+    else this.renderTerminalButton(!!live);
 
     // Alerta.
     const waiting = a.status === 'waiting' && !!live;
@@ -575,7 +593,12 @@ class AgentView {
       const accName = account?.name ?? a.account;
       // Codex: "Vá ao Codex (Conta X)"; sem repetir quando a conta já se chama "Codex".
       const where = codex ? tr('ao Codex{0}', [/codex/i.test(accName) ? '' : ` (${accName})`]) : tr('ao terminal da {0}', [accName]);
-      setText(this.alertText, tr('Vá {0} em {1} para responder{2}', [where, room?.name ?? tr('seu projeto'), a.waitingFor ? `: ${a.waitingFor}` : '.']));
+      setText(
+        this.alertText,
+        a.factory
+          ? tr('No Workboard do OpenClaw{0}', [a.waitingFor ? `: ${a.waitingFor}.` : '.'])
+          : tr('Vá {0} em {1} para responder{2}', [where, room?.name ?? tr('seu projeto'), a.waitingFor ? `: ${a.waitingFor}` : '.']),
+      );
     }
     // Perguntas do AskUserQuestion (só leitura): o Codex não pergunta pelo escritório.
     const asking = waiting && !codex && a.activity?.kind === 'ask' ? a.activity : undefined;
@@ -616,7 +639,9 @@ class AgentView {
     setText(this.actDetail, detail);
 
     // Mandar mensagem: só para principais presentes (com o recurso ligado e a página local; sem o plugin, a dica).
-    setHidden(this.msgSec.el, this.composer.render(live, this.id) === 'off');
+    // A fábrica não recebe mensagens daqui: o cartão roda num nó do OpenClaw.
+    const composer = this.composer.render(live, this.id);
+    setHidden(this.msgSec.el, composer === 'off' || !!a.factory);
 
     // Vida social (personalidade, carteira, rodas): só de quem está no escritório.
     if (live) this.social.render(a.id, now);
@@ -815,11 +840,14 @@ class RoomView {
   private feedSec: ReturnType<typeof section>;
   private newBtn: HTMLButtonElement;
   private newMsg: HTMLElement;
+  /** Sala da fábrica: o que as placas dizem (fila e autonomia da semana), por extenso. */
+  private factoryLine: HTMLElement;
 
   constructor(
     private ctx: UiContext,
     private pty: PtyControl,
   ) {
+    this.factoryLine = h('p', { class: 'ui-muted ui-small ui-room-factory', hidden: true });
     this.newBtn = h('button', { class: 'ui-btn', type: 'button', text: tr('Nova sessão'), title: tr('Abre um Claude Code novo nesta pasta, num terminal interativo'), on: { click: () => this.newSession() } });
     this.newMsg = h('p', { class: 'ui-actions__msg is-error', role: 'status', hidden: true });
     this.swatch = h('span', { class: 'ui-room-hero__swatch', attrs: { 'aria-hidden': 'true' } });
@@ -882,6 +910,7 @@ class RoomView {
       ),
       this.gone,
       h('div', { class: 'ui-status' }, accsEl, h('span', { class: 'ui-status__actions' }, this.newBtn, centerBtn)),
+      this.factoryLine,
       this.newMsg,
       this.agentsSec.el,
       this.tasksSec.el,
@@ -930,7 +959,17 @@ class RoomView {
     }
     setHidden(this.gone, !!live);
     setHidden(this.renameBtn, !live || !canRenameRoom(this.ctx, r.id));
-    setHidden(this.newBtn, !this.pty.enabled);
+    // A pasta de uma sala da fábrica é o quadro no Workboard: nada de sessão nova nela.
+    setHidden(this.newBtn, !this.pty.enabled || !!r.factory);
+    const fac = r.factory;
+    const facText = fac
+      ? [
+          fac.queued ? plural(fac.queued, tr('cartão na fila'), tr('cartões na fila')) : tr('Nenhum cartão na fila'),
+          ...(fac.trust ? [tr('{0} de {1} autônomos esta semana', [fac.trust.autonomous, fac.trust.accepted])] : []),
+        ].join(' · ')
+      : '';
+    setText(this.factoryLine, facText);
+    setHidden(this.factoryLine, !fac);
 
     const snap = this.ctx.store.snapshot;
     const agents = (snap?.agents ?? []).filter((a) => a.roomId === r.id);

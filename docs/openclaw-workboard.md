@@ -1,7 +1,8 @@
 # A fábrica do OpenClaw no escritório
 
-Nota de design. Situação: **fatia 1 pronta** (modo demonstração); da fatia 2, o cliente do Gateway e o filtro do World
-estão prontos (`HABBLAUD_WORKBOARD_URL`, ver `server/README.md`), o modo portal ainda não; as outras ainda não existem.
+Nota de design. Situação: **fatias 1 e 2 prontas** (modo demonstração, cliente do Gateway, filtro do World e modo
+portal; ver `server/README.md`); da fatia 3, a parte do Habblaud está pronta (placas, chão de fábrica e "Abrir
+cartão"), a entrada no menu do Workboard (fork do OpenClaw) ainda não; a fatia 4 ainda não existe.
 
 A "fábrica" é o plugin Workboard do [OpenClaw](https://github.com/openclaw/openclaw) rodando no Gateway: cada quadro
 (board) é um projeto, cada cartão (card) é um tíquete que um nó (máquina de build) executa com `claude -p`, um
@@ -22,7 +23,7 @@ Workboard, onde ficam o processo e o histórico.
 | Verificação e sessão de grill | Personagens à parte, que vão até a mesa do cartão enquanto trabalham |
 | Cartões na fila | Só uma placa "N na fila" na sala |
 | Cartões concluídos, backlog e probes (`[PROBE:<braço>]`) | Não aparecem |
-| Degrau de confiança e "N de M autônomos" (`projectWorkboardTrust`) | Placa na sala |
+| "N de M autônomos" da semana (`week` de `workboard.overview`, o cabeçalho da Factory overview) | Placa na sala. O degrau de confiança é por classe de cartão, não por quadro: não aparece |
 
 Estágio (`WorkboardCardStage`, derivado pelo Gateway) para status e efeito:
 
@@ -35,8 +36,9 @@ Estágio (`WorkboardCardStage`, derivado pelo Gateway) para status e efeito:
 | verificação `fail` | | alarme |
 
 O balão mostra só o estágio e o título do cartão: nada de ferramenta por ferramenta (os transcripts dos nós só chegam
-ao Gateway de madrugada, e o objetivo é o fluxo do projeto, não cada edição). Clicar no personagem é só leitura, com
-dois links: "Abrir cartão" (Control UI) e "Transcript" (`/card/<cardId>` do agentplay).
+ao Gateway de madrugada, e o objetivo é o fluxo do projeto, não cada edição). Clicar no personagem é só leitura, com o
+link "Abrir cartão" (Control UI, `HABBLAUD_WORKBOARD_UI_URL`). Sem link de transcript: o token de portal do agentplay
+pede `operator.write`, que o Habblaud não tem.
 
 `provider` continua dizendo a ferramenta (`claude`); a origem fábrica vai num campo próprio (`factory`) do agente e da
 sala, que é o que o resto do Habblaud usa para tratar esses agentes à parte.
@@ -47,8 +49,8 @@ Um serviço próprio (`server/workboard/`), fora do contrato `AgentSource`: aque
 (transcript, terminal, `provider`), e a fábrica chega como um retrato inteiro do quadro que substitui o anterior. O
 serviço fala com o WebSocket do Gateway como um dispositivo pareado com escopo `operator.read` (desafio assinado com
 Ed25519 do `node:crypto`, sem dependência nova), escuta `plugin.workboard.changed` (só um sinal de "mudou", sem dados),
-relê `workboard.boards.list` e `workboard.cards.list` e entrega ao `Office` a projeção pura de `shared/workboard/` (a
-mesma do modo demonstração). O `Office` guarda essa projeção como guarda a do demo: uma camada à parte, juntada no
+relê `workboard.boards.list`, `workboard.cards.list` e `workboard.overview` e entrega ao `Office` a projeção pura de
+`shared/workboard/` (a mesma do modo demonstração). O `Office` guarda essa projeção como guarda a do demo: uma camada à parte, juntada no
 snapshot, fora de `Office.list()`, que é o que alimenta o World.
 
 Descartado: `openclaw workboard list --json` (a documentação do Workboard avisa que o acesso local pela CLI não é

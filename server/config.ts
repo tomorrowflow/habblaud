@@ -67,6 +67,13 @@ export interface ServerConfig {
   workboard?: WorkboardConfig;
   /** Por que HABBLAUD_WORKBOARD_URL foi recusada (a fábrica fica desligada). */
   workboardWarning?: string;
+  /**
+   * HABBLAUD_WORKBOARD_UI_URL: endereço da Control UI do OpenClaw (http ou https, sem barra no fim), para o link
+   * "Abrir cartão" da gaveta (OfficeSnapshot.meta.workboardUi). Ausente = sem o link.
+   */
+  workboardUi?: string;
+  /** Por que HABBLAUD_WORKBOARD_UI_URL foi recusada (fica sem o link). */
+  workboardUiWarning?: string;
 }
 
 export interface WorkboardConfig {
@@ -257,6 +264,23 @@ export function parseWorkboardConfig(env: NodeJS.ProcessEnv): { config?: Workboa
   return { config: { url: u.href, ...(token ? { token } : {}) } };
 }
 
+/** A Control UI do OpenClaw a partir do ambiente: o caminho fica (a UI pode morar num subcaminho); usuário, senha, parâmetros e âncora não. */
+export function parseWorkboardUiUrl(env: NodeJS.ProcessEnv): { url?: string; warning?: string } {
+  const raw = env.HABBLAUD_WORKBOARD_UI_URL?.trim();
+  if (!raw) return {};
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return { warning: tr('HABBLAUD_WORKBOARD_UI_URL não é um endereço válido') };
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return { warning: tr('HABBLAUD_WORKBOARD_UI_URL precisa começar com http:// ou https://') };
+  if (u.username || u.password || u.search || u.hash) {
+    return { warning: tr('HABBLAUD_WORKBOARD_UI_URL deve ter só o endereço da Control UI (sem usuário, senha, parâmetros ou âncora)') };
+  }
+  return { url: `${u.origin}${u.pathname.replace(/\/+$/, '')}` };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] = process.argv): ServerConfig {
   const home = env.HOME || homedir();
   const inDocker = detectDocker(env);
@@ -266,6 +290,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
   const pkg = readPackage(rootDir);
   const remote = parseRemoteConfig(env, inDocker);
   const workboard = parseWorkboardConfig(env);
+  const workboardUi = parseWorkboardUiUrl(env);
   return {
     port: Number.isFinite(port) && port > 0 && port < 65536 ? port : 4747,
     host,
@@ -291,5 +316,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     portal: isTruthy(env.HABBLAUD_PORTAL),
     workboard: workboard.config,
     workboardWarning: workboard.warning,
+    workboardUi: workboardUi.url,
+    workboardUiWarning: workboardUi.warning,
   };
 }

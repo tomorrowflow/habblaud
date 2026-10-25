@@ -31,6 +31,13 @@ do meio (0.**3**.0).
   (`openclaw devices approve <requestId>`, o log mostra o pedido); o estado aparece em `/api/health`. Quem espera por
   você no Workboard entra no resumo do mod do Claude Code. Os agentes da fábrica rodam nas máquinas do Gateway, não
   neste computador: nunca sobem ao Habblaud World nem contam no Meu dia.
+- **Salas da fábrica com cara de chão de fábrica.** Cada quadro do Workboard vira uma sala de cimento e tijolo, com
+  uma faixa zebrada em volta das mesas, uma etiqueta “N na fila” pendurada embaixo da placa com o nome e um quadrinho
+  “N de M autônomos” (os cartões aceitos na semana sem nenhum toque humano, como no cabeçalho da Factory overview).
+  A gaveta da sala diz o mesmo por extenso. Os personagens da fábrica aparecem com a conta “OpenClaw”.
+- **“Abrir cartão” na gaveta de um personagem da fábrica.** Com `HABBLAUD_WORKBOARD_UI_URL` (o endereço da Control UI
+  do OpenClaw), o botão abre o cartão no Workboard em outra aba, também no modo portal. A gaveta desses personagens é
+  só leitura: sem terminal e sem mensagens.
 
 ## [1.0.3] - 2026-10-16
 

@@ -3323,4 +3323,19 @@ export const ES: Readonly<Record<string, string>> = {
   "conexão com o Gateway fechada": "conexión con el Gateway cerrada",
   "o Gateway não respondeu a {0}": "el Gateway no respondió a {0}",
   "Fábrica do OpenClaw: não foi possível ler o Workboard ({0}).": "Fábrica de OpenClaw: no se pudo leer el Workboard ({0}).",
+
+  // client/src/world/render/factory-signs.ts, client/src/ui/drawer.ts, server/workboard/service.ts e server/config.ts (fábrica)
+  "{0} na fila": "{0} en cola",
+  "autônomos": "autónomas",
+  "Abrir cartão": "Abrir tarjeta",
+  "Abrir o cartão no Workboard do OpenClaw (outra aba)": "Abrir la tarjeta en el Workboard de OpenClaw (otra pestaña)",
+  "No Workboard do OpenClaw{0}": "En el Workboard de OpenClaw{0}",
+  "cartão na fila": "tarjeta en cola",
+  "cartões na fila": "tarjetas en cola",
+  "Nenhum cartão na fila": "Ninguna tarjeta en cola",
+  "{0} de {1} autônomos esta semana": "{0} de {1} autónomas esta semana",
+  "Fábrica do OpenClaw: sem a autonomia dos quadros (workboard.overview: {0}).": "Fábrica de OpenClaw: sin la autonomía de los tableros (workboard.overview: {0}).",
+  "HABBLAUD_WORKBOARD_UI_URL não é um endereço válido": "HABBLAUD_WORKBOARD_UI_URL no es una dirección válida",
+  "HABBLAUD_WORKBOARD_UI_URL precisa começar com http:// ou https://": "HABBLAUD_WORKBOARD_UI_URL debe empezar con http:// o https://",
+  "HABBLAUD_WORKBOARD_UI_URL deve ter só o endereço da Control UI (sem usuário, senha, parâmetros ou âncora)": "HABBLAUD_WORKBOARD_UI_URL debe tener solo la dirección de la Control UI (sin usuario, contraseña, parámetros ni ancla)",
 };
