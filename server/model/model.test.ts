@@ -463,6 +463,19 @@ describe('Office', () => {
     expect(off.agents.map((a) => a.id)).toEqual(['acc:1']);
   });
 
+  it('demo: a fábrica entra com o nome do quadro, a fila e os personagens, tudo com prefixo demo:', () => {
+    const { office } = makeOffice();
+    office.setDemo(true);
+    const snap = office.commit().snapshot;
+    const loja = snap.rooms.find((r) => r.id === 'demo:workboard:loja')!;
+    expect(loja).toMatchObject({ name: 'Loja online', factory: { boardId: 'loja', queued: 2 } });
+    const builder = snap.agents.find((a) => a.id === 'demo:workboard:wb-201')!;
+    expect(builder).toMatchObject({ roomId: 'demo:workboard:pagamentos', status: 'working', factory: { boardId: 'pagamentos', cardId: 'wb-201', role: 'builder' } });
+    expect(snap.agents.filter((a) => a.factory).every((a) => a.id.startsWith('demo:') && snap.rooms.some((r) => r.id === a.roomId))).toBe(true);
+    const slots = snap.rooms.map((r) => r.slot);
+    expect(new Set(slots).size).toBe(slots.length);
+  });
+
   it('meta.terminal: só com o terminal ligado', () => {
     expect(makeOffice().office.commit().snapshot.meta.terminal).toBe(false);
     const deps = { names: new NameStore(null), version: 't', startedAt: 0, accounts: () => [], sources: () => [], accountName: () => undefined };

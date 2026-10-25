@@ -1,6 +1,6 @@
 # A fábrica do OpenClaw no escritório
 
-Nota de design. Situação: **fatia 1 em andamento** (as outras ainda não existem).
+Nota de design. Situação: **fatia 1 pronta** (só no modo demonstração); as outras ainda não existem.
 
 A "fábrica" é o plugin Workboard do [OpenClaw](https://github.com/openclaw/openclaw) rodando no Gateway: cada quadro
 (board) é um projeto, cada cartão (card) é um tíquete que um nó (máquina de build) executa com `claude -p`, um

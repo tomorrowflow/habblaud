@@ -798,7 +798,7 @@ export class Office {
     if (enabled === this.isDemo()) return;
     const now = this.now();
     if (enabled) {
-      this.demo = new DemoSimulator({ idPrefix: 'demo:' }, now);
+      this.demo = new DemoSimulator({ idPrefix: 'demo:', factory: true }, now);
       this.demoSnap = this.demo.snapshot(now);
     } else {
       this.demo = null;
@@ -966,10 +966,15 @@ export class Office {
         createdAt: r.createdAt,
       }))
       .sort((a, b) => a.slot - b.slot);
-    // festa/alarme (eventos do GitHub): das salas reais ou do demo
+    // festa/alarme (eventos do GitHub): das salas reais ou do demo; a sala da fábrica do demo leva o nome do quadro
     for (const room of rooms) {
-      const effect = this.effects.get(room.id, now) ?? this.demoSnap?.rooms.find((r) => r.id === room.id)?.effect;
+      const demo = this.demoSnap?.rooms.find((r) => r.id === room.id);
+      const effect = this.effects.get(room.id, now) ?? demo?.effect;
       if (effect) room.effect = { ...effect };
+      if (demo?.factory) {
+        room.name = demo.name;
+        room.factory = { ...demo.factory };
+      }
     }
     const perms = this.deps.permissions?.();
     const real = [...this.agents.values()].map((r) => applyPermission(cloneAgent(r.info), perms?.get(r.info.id)));

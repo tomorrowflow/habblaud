@@ -10,6 +10,15 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+### Adicionado
+
+- **Modo demonstração: a fábrica do OpenClaw no escritório.** Com `HABBLAUD_DEMO=1` (ou `?mock=1`), duas salas de
+  “quadros” do Workboard aparecem ao lado do escritório simulado, com um roteiro que se repete a cada ~5 minutos: um
+  personagem por cartão em andamento (trabalhando ou esperando por você, com o estágio e o título no balão), um
+  verificador e um personagem do grill enquanto essas etapas rodam, a contagem de cartões na fila, festa quando um
+  cartão é publicado e alarme quando a verificação reprova. Cartões de teste (`[PROBE:…]`) e concluídos não aparecem. É
+  só demonstração: nada disso sobe ao Habblaud World, e ainda não há conexão com um Gateway de verdade.
+
 ## [1.0.3] - 2026-10-16
 
 ### Corrigido
