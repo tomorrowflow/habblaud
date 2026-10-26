@@ -92,6 +92,8 @@ export class SettingsPopover implements UiComponent {
   private language: ReturnType<typeof segmented<LanguageChoice>>;
   private soundGroup: SoundSettingsGroup;
   private demoGroup: HTMLElement;
+  /** Notificações do navegador: no portal a página abre num iframe da Control UI, onde o navegador as bloqueia. */
+  private alertsGroup: HTMLElement;
   /** Só na página do celular (porta remota com login): sair deste aparelho. */
   private remoteGroup: HTMLElement;
   private logoutBtn: HTMLButtonElement;
@@ -163,6 +165,13 @@ export class SettingsPopover implements UiComponent {
       h('span', { class: 'ui-set__hint', text: tr('Os textos das atividades vêm do servidor: seguem HABBLAUD_LANG ou o idioma do sistema onde o Habblaud roda (o inglês, só com HABBLAUD_LANG=en).') }),
     );
 
+    this.alertsGroup = h(
+      'div',
+      { class: 'ui-set-group' },
+      h('h3', { text: tr('Avisos') }),
+      sw('browserNotifications', tr('Notificações do navegador'), tr('Avisa quando alguém precisa de você e a aba está em segundo plano.'), () => void this.toggleNotifications()),
+    );
+
     this.demoGroup = h(
       'div',
       { class: 'ui-set-group' },
@@ -206,12 +215,7 @@ export class SettingsPopover implements UiComponent {
         this.liveliness.row,
         this.daylight.row,
       ),
-      h(
-        'div',
-        { class: 'ui-set-group' },
-        h('h3', { text: tr('Avisos') }),
-        sw('browserNotifications', tr('Notificações do navegador'), tr('Avisa quando alguém precisa de você e a aba está em segundo plano.'), () => void this.toggleNotifications()),
-      ),
+      this.alertsGroup,
       this.soundGroup.el,
       h('div', { class: 'ui-set-group' }, h('h3', { text: tr('Idioma') }), this.language.row),
       this.demoGroup,
@@ -287,7 +291,8 @@ export class SettingsPopover implements UiComponent {
     this.theme.set(p.theme);
     this.language.set(savedLanguage());
     this.soundGroup.render();
-    setHidden(this.demoGroup, this.ctx.store.mock || access().remote);
+    setHidden(this.demoGroup, this.ctx.store.mock || access().remote || !!access().portal);
+    setHidden(this.alertsGroup, !!access().portal);
     setHidden(this.remoteGroup, !access().remote);
     this.about.render();
 

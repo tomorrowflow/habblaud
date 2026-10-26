@@ -18,6 +18,8 @@ do meio (0.**3**.0).
   pedido chega do próprio computador mesmo vindo de um cliente da rede) e o Habblaud World fica desligado. A página
   esconde as ações recusadas, `/api/health` traz `portal: true` e as páginas deixam de mandar `X-Frame-Options` para
   abrir no iframe da Control UI. Desligado por padrão: sem a variável nada muda.
+  Também somem os controles que só ficariam apagados: o histórico de sessões, o “Abrir terminal” da gaveta, o
+  modo demonstração, as notificações do navegador (bloqueadas no iframe) e o estado da verificação de versão.
 
 - **Modo demonstração: a fábrica do OpenClaw no escritório.** Com `HABBLAUD_DEMO=1` (ou `?mock=1`), duas salas de
   “quadros” do Workboard aparecem ao lado do escritório simulado, com um roteiro que se repete a cada ~5 minutos: um
