@@ -3,6 +3,7 @@
 // das configurações (estado da verificação, "Verificar agora", novidades e como atualizar).
 import type { Notice, OfficeSnapshot, UpdateStatus } from '../../../shared/types';
 import type { UiComponent, UiContext } from './context';
+import { access } from '../net/access';
 import { h, setAttr, setHidden, setText, setTitle, setVariant } from './dom';
 import { formatDateTime, relativeTime } from './format';
 import { pixelIcon } from './icons';
@@ -172,7 +173,10 @@ export class AboutGroup {
     const line = this.failure ? { tone: 'warn' as const, text: this.failure } : updateStatusLine(info.version, s, this.ctx.now());
     setText(this.status, this.checking ? tr('Consultando o GitHub…') : line.text);
     setVariant(this.status, 'is-', this.checking ? 'pending' : line.tone);
-    setHidden(this.checkBtn, !s || s.state === 'off');
+    // Portal: quem olha não administra o servidor (verificar versão recebe 403); fica só o número.
+    const portal = !!access().portal;
+    setHidden(this.status, portal);
+    setHidden(this.checkBtn, portal || !s || s.state === 'off');
     this.checkBtn.disabled = this.checking || this.ctx.store.connection !== 'open';
 
     const fresh = !!s?.available && !!s.latest;

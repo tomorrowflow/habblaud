@@ -251,7 +251,7 @@ describe('modo portal: só leitura', () => {
     const health = JSON.parse((await call('GET', '/api/health')).body);
     expect(health).toMatchObject({ ok: true, portal: true, terminal: false, permissions: false, pty: false, messages: false });
     const access = JSON.parse((await call('GET', '/api/access')).body);
-    expect(access).toEqual({ remote: false, local: false, permissions: false, messages: false, terminal: false, spawn: false, world: false });
+    expect(access).toEqual({ remote: false, local: false, permissions: false, messages: false, terminal: false, spawn: false, world: false, portal: true });
   });
 
   it('o snapshot sai sem permissão respondível (canAnswer falso)', async () => {

@@ -241,6 +241,8 @@ export class HistoryPopover implements UiComponent {
 
   render(): void {
     const available = this.available;
+    // No portal o histórico nunca abre (é do terminal): o botão some em vez de ficar apagado.
+    setHidden(this.button, !!access().portal);
     // aria-disabled (e não disabled): o botão continua focável e a dica do porquê aparece no hover.
     setAttr(this.button, 'aria-disabled', available ? null : 'true');
     this.button.classList.toggle('is-disabled', !available);

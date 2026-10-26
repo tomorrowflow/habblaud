@@ -411,6 +411,8 @@ export interface AccessInfo {
    * com Host local. Ausente em servidores antigos.
    */
   world?: boolean;
+  /** Modo portal (HABBLAUD_PORTAL=1): só visualização, a página esconde o que agiria. Ausente fora dele. */
+  portal?: boolean;
 }
 
 export interface FeedItem {

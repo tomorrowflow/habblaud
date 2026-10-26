@@ -438,6 +438,7 @@ export function createApiHandler(given: ApiDeps): (req: IncomingMessage, res: Se
           terminal: !!terminals && trusted(req, 'terminal'),
           spawn: !!deps.spawn && trusted(req, 'spawn'),
           world: !!deps.world && !!deps.terminal && !remote && isLoopbackHost(req.headers.host),
+          ...(portal ? { portal: true } : {}),
         };
         sendJson(res, 200, access);
       }

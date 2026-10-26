@@ -18,6 +18,8 @@ do meio (0.**3**.0).
   pedido chega do próprio computador mesmo vindo de um cliente da rede) e o Habblaud World fica desligado. A página
   esconde as ações recusadas, `/api/health` traz `portal: true` e as páginas deixam de mandar `X-Frame-Options` para
   abrir no iframe da Control UI. Desligado por padrão: sem a variável nada muda.
+  Também somem os controles que só ficariam apagados: o histórico de sessões, o “Abrir terminal” da gaveta, o
+  modo demonstração, as notificações do navegador (bloqueadas no iframe) e o estado da verificação de versão.
 
 - **Mod do Claude Code em inglês.** Com `HABBLAUD_LANG=en` no `env` do `settings.json` do Claude Code, a linha
   embaixo do prompt, o `/habblaud` e a descrição do comando saem em inglês. Sem a variável, tudo segue em português.

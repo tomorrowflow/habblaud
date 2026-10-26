@@ -581,8 +581,10 @@ class AgentView {
     const cardUrl = factoryCardUrl(a, this.ctx.store.snapshot?.meta.workboardUi);
     setHidden(this.cardLink, !cardUrl);
     setAttr(this.cardLink, 'href', cardUrl);
-    setHidden(this.termBtn, !!a.factory);
-    if (a.factory) setHidden(this.termWhy, true);
+    // Fábrica (o cartão roda num nó do OpenClaw) ou portal (só visualização): sem terminal para abrir.
+    const noTerminal = !!a.factory || !!access().portal;
+    setHidden(this.termBtn, noTerminal);
+    if (noTerminal) setHidden(this.termWhy, true);
     else this.renderTerminalButton(!!live);
 
     // Alerta.
