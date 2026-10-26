@@ -34,6 +34,8 @@ const CLIENT_ID = 'gateway-client';
 const CLIENT_MODE = 'backend';
 const ROLE = 'operator';
 const SCOPES = ['operator.read'];
+/** Recusas do segredo compartilhado (HABBLAUD_WORKBOARD_TOKEN) que só uma configuração nova resolve. */
+const SHARED_TOKEN_REFUSED = new Set(['AUTH_TOKEN_MISMATCH', 'AUTH_TOKEN_MISSING', 'AUTH_TOKEN_NOT_CONFIGURED']);
 
 export const WORKBOARD_TIMING = {
   /** Espera depois de um `changed` antes de reler (junta rajadas). */
@@ -112,6 +114,8 @@ export class WorkboardService {
   private pairingRequest: string | undefined;
   /** O token do dispositivo acabou de ser recusado: a próxima tentativa (com o segredo) vai sem espera. */
   private retryNow = false;
+  /** O Gateway recusou o segredo compartilhado: sem novas tentativas até reiniciar. */
+  private halted = false;
   private readonly createdAt: number;
   private stopped = true;
 
@@ -272,6 +276,11 @@ export class WorkboardService {
       // Token do dispositivo revogado ou trocado: esquece e tenta de novo já, com o segredo compartilhado.
       this.o.store.setToken(undefined);
       this.retryNow = true;
+    } else if (e?.code && SHARED_TOKEN_REFUSED.has(e.code)) {
+      // HABBLAUD_WORKBOARD_TOKEN errado ou ausente não se conserta sozinho: insistir só enche o limite de tentativas do Gateway.
+      this.halted = true;
+      this.setError(tr('{0} ({1}); confira HABBLAUD_WORKBOARD_TOKEN e reinicie o Habblaud', [e.message, e.code]));
+      log.warn(tr('Fábrica do OpenClaw: o Gateway recusou o token; parei de tentar. {0}', [this.error]));
     } else {
       this.setError(e ? `${e.message}${e.code ? ` (${e.code})` : ''}` : errMsg(err));
       log.warnOnce('workboard-error', tr('Fábrica do OpenClaw: o Gateway recusou a conexão: {0}', [this.error]));
@@ -282,7 +291,7 @@ export class WorkboardService {
   private onClose(link: Link): void {
     if (this.link !== link) return;
     this.drop(link);
-    if (this.stopped) return;
+    if (this.stopped || this.halted) return;
     if (link.ready) {
       this.downSince = this.now();
       this.state = 'connecting';

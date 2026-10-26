@@ -30,7 +30,8 @@ do meio (0.**3**.0).
   andamento como personagens, atualizados a cada mudança. Na primeira vez, aprove o dispositivo no Gateway
   (`openclaw devices approve <requestId>`, o log mostra o pedido); o estado aparece em `/api/health`. Quem espera por
   você no Workboard entra no resumo do mod do Claude Code. Os agentes da fábrica rodam nas máquinas do Gateway, não
-  neste computador: nunca sobem ao Habblaud World nem contam no Meu dia.
+  neste computador: nunca sobem ao Habblaud World nem contam no Meu dia. Se o Gateway recusar o token, o Habblaud para
+  de tentar e diz em `/api/health` o que conferir.
 - **Salas da fábrica com cara de chão de fábrica.** Cada quadro do Workboard vira uma sala de cimento e tijolo, com
   uma faixa zebrada em volta das mesas, uma etiqueta “N na fila” pendurada embaixo da placa com o nome e um quadrinho
   “N de M autônomos” (os cartões aceitos na semana sem nenhum toque humano, como no cabeçalho da Factory overview).

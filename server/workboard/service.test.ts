@@ -47,8 +47,8 @@ async function setup(opts: { file?: string } = {}) {
     sources: () => [],
     accountName: () => undefined,
   });
-  const make = () => {
-    const svc = new WorkboardService({ url: gw.url, token: gw.token, store: new DeviceStore(file), office, version: '9.9.9', timing: FAST });
+  const make = (token = gw.token) => {
+    const svc = new WorkboardService({ url: gw.url, token, store: new DeviceStore(file), office, version: '9.9.9', timing: FAST });
     closers.push(() => svc.stop());
     return svc;
   };
@@ -137,6 +137,17 @@ describe('WorkboardService', () => {
     gw.overviews.pagamentos = { ...gw.overviews.pagamentos, week: { weekStart: NOW, accepted: 6, autonomous: 4 } };
     gw.changed();
     await waitFor(() => snap().rooms.find((r) => r.id === 'factory:workboard:pagamentos')?.factory?.trust?.accepted === 6, 'autonomia relida');
+  });
+
+  it('segredo compartilhado recusado: para de tentar e diz o que conferir', async () => {
+    const { gw, make } = await setup();
+    const svc = make('segredo-errado');
+    svc.start();
+    await waitFor(() => svc.health().state === 'error', 'recusado');
+    expect(svc.health().error).toContain('AUTH_TOKEN_MISMATCH');
+    expect(svc.health().error).toContain('HABBLAUD_WORKBOARD_TOKEN');
+    await new Promise((r) => setTimeout(r, FAST.backoffMaxMs * 4));
+    expect(gw.connects).toHaveLength(1);
   });
 
   it('reconexão: usa o token do dispositivo guardado (sem pedir pareamento); revogado, volta ao segredo compartilhado', async () => {
