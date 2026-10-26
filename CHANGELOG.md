@@ -19,6 +19,9 @@ do meio (0.**3**.0).
   esconde as ações recusadas, `/api/health` traz `portal: true` e as páginas deixam de mandar `X-Frame-Options` para
   abrir no iframe da Control UI. Desligado por padrão: sem a variável nada muda.
 
+- **Mod do Claude Code em inglês.** Com `HABBLAUD_LANG=en` no `env` do `settings.json` do Claude Code, a linha
+  embaixo do prompt, o `/habblaud` e a descrição do comando saem em inglês. Sem a variável, tudo segue em português.
+
 - **Modo demonstração: a fábrica do OpenClaw no escritório.** Com `HABBLAUD_DEMO=1` (ou `?mock=1`), duas salas de
   “quadros” do Workboard aparecem ao lado do escritório simulado, com um roteiro que se repete a cada ~5 minutos: um
   personagem por cartão em andamento (trabalhando ou esperando por você, com o estágio e o título no balão), um

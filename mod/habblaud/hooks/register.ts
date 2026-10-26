@@ -35,6 +35,45 @@ export const MIN_REWRITE_MS = 10_000
 /** Nomes na linha embaixo do prompt antes do "e mais N". */
 const MAX_NAMES = 3
 
+/**
+ * Idioma dos textos do mod: HABBLAUD_LANG, a mesma variável do servidor (no `env` do settings.json do Claude Code).
+ * Só inglês e português por enquanto; o resto (e sem a variável) fica em português, como antes.
+ */
+export type ModLang = 'pt-BR' | 'en'
+
+export function langOf(raw: string | undefined): ModLang {
+  return raw?.trim().toLowerCase().startsWith('en') ? 'en' : 'pt-BR'
+}
+
+const TEXT = {
+  'pt-BR': {
+    answerInTerminal: 'responder no terminal',
+    oneWaiting: (name: string, room: string) => `🏢 ${name} precisa de você em ${room}`,
+    manyWaiting: (n: number, names: string, rest: number) => `🏢 ${n} precisam de você: ${names}${rest > 0 ? ` e mais ${rest}` : ''}`,
+    agents: (n: number) => (n === 1 ? '1 agente' : `${n} agentes`),
+    waitingCount: (n: number) => (n === 0 ? 'ninguém precisa de você' : n === 1 ? '1 precisa de você' : `${n} precisam de você`),
+    header: (version: string, url: string) => `Habblaud ${version} em ${url}`,
+    working: (n: number) => `${n} trabalhando`,
+    answerable: ' · dá para responder pelo escritório',
+    offline: (url: string) => `O Habblaud não respondeu em ${url}. Para subir: npm run docker:up na pasta do Habblaud.`,
+    outdated: (url: string) => `O Habblaud em ${url} está numa versão sem a rota do mod. Para atualizar: git pull e npm run docker:up na pasta do Habblaud.`,
+    command: 'Resumo do Habblaud: quantos agentes, quem trabalha e quem precisa de você',
+  },
+  en: {
+    answerInTerminal: 'answer in the terminal',
+    oneWaiting: (name: string, room: string) => `🏢 ${name} needs you in ${room}`,
+    manyWaiting: (n: number, names: string, rest: number) => `🏢 ${n} need you: ${names}${rest > 0 ? ` and ${rest} more` : ''}`,
+    agents: (n: number) => (n === 1 ? '1 agent' : `${n} agents`),
+    waitingCount: (n: number) => (n === 0 ? 'nobody needs you' : n === 1 ? '1 needs you' : `${n} need you`),
+    header: (version: string, url: string) => `Habblaud ${version} at ${url}`,
+    working: (n: number) => `${n} working`,
+    answerable: ' · can be answered from the office',
+    offline: (url: string) => `Habblaud did not answer at ${url}. To start it: npm run docker:up in the Habblaud folder.`,
+    outdated: (url: string) => `Habblaud at ${url} runs a version without the mod route. To update: git pull and npm run docker:up in the Habblaud folder.`,
+    command: 'Habblaud summary: how many agents, who is working and who needs you',
+  },
+} as const
+
 /** Uma janela no formato do tap: percentual 0–100 e reinício em SEGUNDOS desde a época. */
 export interface UsageWindow {
   utilization: number
@@ -80,6 +119,7 @@ interface ModEnv {
   /** Pasta do uso; ausente sem HOME (ou USERPROFILE) nem HABBLAUD_USAGE_DIR. */
   usageDir?: string
   port: number
+  lang: ModLang
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -185,7 +225,7 @@ function count(v: unknown): number {
 }
 
 /** Lê a resposta de GET /api/mod/summary; qualquer coisa fora do formato = undefined (vale "fora do ar"). */
-export function parseSummary(text: string): Summary | undefined {
+export function parseSummary(text: string, lang: ModLang = 'pt-BR'): Summary | undefined {
   let j: unknown
   try {
     j = JSON.parse(text)
@@ -206,7 +246,7 @@ export function parseSummary(text: string): Summary | undefined {
       name,
       room: str(w.room) ?? '?',
       account: str(w.account) ?? '',
-      waitingFor: str(w.waitingFor) ?? 'responder no terminal',
+      waitingFor: str(w.waitingFor) ?? TEXT[lang].answerInTerminal,
       answerable: w.answerable === true,
     }
     if (typeof w.since === 'number' && Number.isFinite(w.since)) agent.since = w.since
@@ -216,30 +256,28 @@ export function parseSummary(text: string): Summary | undefined {
 }
 
 /** A linha embaixo do prompt: undefined quando ninguém (além desta sessão) precisa de você. */
-export function statusText(waiting: readonly WaitingAgent[]): string | undefined {
+export function statusText(waiting: readonly WaitingAgent[], lang: ModLang = 'pt-BR'): string | undefined {
   const first = waiting[0]
   if (!first) return undefined
-  if (waiting.length === 1) return `🏢 ${first.name} precisa de você em ${first.room}`
+  if (waiting.length === 1) return TEXT[lang].oneWaiting(first.name, first.room)
   const shown = waiting.slice(0, MAX_NAMES).map((w) => `${w.name} (${w.room})`)
-  const rest = waiting.length - shown.length
-  return `🏢 ${waiting.length} precisam de você: ${shown.join(', ')}${rest > 0 ? ` e mais ${rest}` : ''}`
+  return TEXT[lang].manyWaiting(waiting.length, shown.join(', '), waiting.length - shown.length)
 }
 
 /** A resposta do /habblaud com o Habblaud no ar. */
-export function summaryText(s: Summary, url: string): string {
-  const agents = s.agents === 1 ? '1 agente' : `${s.agents} agentes`
-  const waiting = s.waiting.length === 0 ? 'ninguém precisa de você' : s.waiting.length === 1 ? '1 precisa de você' : `${s.waiting.length} precisam de você`
-  const lines = [`Habblaud ${s.version} em ${url}`, `${agents} · ${s.working} trabalhando · ${waiting}`]
-  for (const w of s.waiting) lines.push(`✋ ${w.name} (${w.room}): ${w.waitingFor}${w.answerable ? ' · dá para responder pelo escritório' : ''}`)
+export function summaryText(s: Summary, url: string, lang: ModLang = 'pt-BR'): string {
+  const t = TEXT[lang]
+  const lines = [t.header(s.version, url), `${t.agents(s.agents)} · ${t.working(s.working)} · ${t.waitingCount(s.waiting.length)}`]
+  for (const w of s.waiting) lines.push(`✋ ${w.name} (${w.room}): ${w.waitingFor}${w.answerable ? t.answerable : ''}`)
   return lines.join('\n')
 }
 
-export function offlineText(url: string): string {
-  return `O Habblaud não respondeu em ${url}. Para subir: npm run docker:up na pasta do Habblaud.`
+export function offlineText(url: string, lang: ModLang = 'pt-BR'): string {
+  return TEXT[lang].offline(url)
 }
 
-export function outdatedText(url: string): string {
-  return `O Habblaud em ${url} está numa versão sem a rota do mod. Para atualizar: git pull e npm run docker:up na pasta do Habblaud.`
+export function outdatedText(url: string, lang: ModLang = 'pt-BR'): string {
+  return TEXT[lang].outdated(url)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -265,6 +303,7 @@ async function readEnv($: EngineInterface): Promise<ModEnv> {
   const next: ModEnv = {
     port: portOf(await $.env.get('HABBLAUD_PORT')),
     usageDir: usageDirOf(await $.env.get('HABBLAUD_USAGE_DIR'), home),
+    lang: langOf(await $.env.get('HABBLAUD_LANG')),
   }
   if (configDir) {
     next.configDir = configDir
@@ -293,7 +332,7 @@ async function writeUsage($: EngineInterface, rateLimits: readonly SessionRateLi
 }
 
 /** GET /api/mod/summary com prazo de 2 s; nunca lança. */
-async function askHabblaud($: EngineInterface, port: number, query: string): Promise<Asked> {
+async function askHabblaud($: EngineInterface, port: number, query: string, lang: ModLang): Promise<Asked> {
   let wait: { cancel: () => void } | undefined
   const timeout = new Promise<undefined>((resolve) => {
     wait = $.clock.after(FETCH_TIMEOUT_MS, () => resolve(undefined))
@@ -303,7 +342,7 @@ async function askHabblaud($: EngineInterface, port: number, query: string): Pro
     if (!res) return { kind: 'offline' }
     // 404 JSON = um Habblaud de antes do mod (rota desconhecida); outro 404 qualquer = não é o Habblaud.
     if (res.status === 404 && res.text.includes('rota desconhecida')) return { kind: 'outdated' }
-    const summary = res.ok ? parseSummary(res.text) : undefined
+    const summary = res.ok ? parseSummary(res.text, lang) : undefined
     return summary ? { kind: 'ok', summary } : { kind: 'offline' }
   } catch {
     return { kind: 'offline' }
@@ -343,14 +382,14 @@ async function poll($: EngineInterface): Promise<void> {
     const params = new URLSearchParams()
     if (e.accountId) params.set('account', e.accountId)
     params.set('session', await $.session.id())
-    const asked = await askHabblaud($, e.port, `?${params.toString()}`)
+    const asked = await askHabblaud($, e.port, `?${params.toString()}`, e.lang)
     if (asked.kind !== 'ok') {
       setStatus($, undefined)
       schedule($, OFFLINE_POLL_MS)
       return
     }
     schedule($, POLL_MS)
-    setStatus($, statusText(asked.summary.waiting))
+    setStatus($, statusText(asked.summary.waiting, e.lang))
   } catch {
     // silêncio: a próxima rodada tenta de novo
   } finally {
@@ -362,16 +401,17 @@ async function poll($: EngineInterface): Promise<void> {
 async function habblaudText($: EngineInterface): Promise<string> {
   const e = await readEnv($)
   const url = `http://localhost:${e.port}`
-  const asked = await askHabblaud($, e.port, '')
-  if (asked.kind === 'outdated') return outdatedText(url)
-  if (asked.kind === 'offline') return offlineText(url)
-  return summaryText(asked.summary, url)
+  const asked = await askHabblaud($, e.port, '', e.lang)
+  if (asked.kind === 'outdated') return outdatedText(url, e.lang)
+  if (asked.kind === 'offline') return offlineText(url, e.lang)
+  return summaryText(asked.summary, url, e.lang)
 }
 
 export const register: Register = (on) => {
   on('session.start', async ($, e, next) => {
     try {
-      await $.command.register({ name: 'habblaud', description: 'Resumo do Habblaud: quantos agentes, quem trabalha e quem precisa de você' })
+      const e = await readEnv($)
+      await $.command.register({ name: 'habblaud', description: TEXT[e.lang].command })
     } catch {
       // sem o comando, o resto segue
     }
@@ -404,7 +444,7 @@ export const register: Register = (on) => {
     try {
       return { text: await habblaudText($) }
     } catch {
-      return { text: offlineText(`http://localhost:${env?.port ?? DEFAULT_PORT}`) }
+      return { text: offlineText(`http://localhost:${env?.port ?? DEFAULT_PORT}`, env?.lang) }
     }
   })
 }

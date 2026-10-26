@@ -252,6 +252,32 @@ describe('/habblaud', () => {
   })
 })
 
+describe('HABBLAUD_LANG=en', () => {
+  const EN = { HOME: '/home/fulano', CLAUDE_CONFIG_DIR: '~/.claude-conta2', HABBLAUD_PORT: PORT, HABBLAUD_LANG: 'en' }
+
+  test('linha embaixo do prompt e /habblaud em inglês', async ($, on) => {
+    let list = [waiting('Valentina', 'loja-virtual')]
+    const w = world(on, { env: EN, answer: () => summary(list) })
+    await $.session.start(START)
+    await w.clock.advance(5_000)
+    expect(w.statuses.at(-1)).toBe('🏢 Valentina needs you in loja-virtual')
+    list = [...list, waiting('Elias', 'app-mobile'), waiting('Bia', 'site'), waiting('Caio', 'api')]
+    await w.clock.advance(5_000)
+    expect(w.statuses.at(-1)).toBe('🏢 4 need you: Valentina (loja-virtual), Elias (app-mobile), Bia (site) and 1 more')
+    list = [waiting('Valentina', 'loja-virtual', { answerable: true, waitingFor: 'approve a permission' })]
+    const out = await $.command.run(RUN)
+    expect(out.text).toBe(
+      ['Habblaud 0.3.0 at http://localhost:4850', '7 agents · 3 working · 1 needs you', '✋ Valentina (loja-virtual): approve a permission · can be answered from the office'].join('\n'),
+    )
+  })
+
+  test('fora do ar, em inglês', async ($, on) => {
+    world(on, { env: EN, answer: () => 'offline' })
+    const out = await $.command.run(RUN)
+    expect(out.text).toBe('Habblaud did not answer at http://localhost:4850. To start it: npm run docker:up in the Habblaud folder.')
+  })
+})
+
 describe('funções puras', () => {
   test('caminhos, conta e pasta de uso como o tap calcula', () => {
     expect(normalizePath('/a//b/./c/../d/')).toBe('/a/b/d')
