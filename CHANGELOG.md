@@ -39,6 +39,11 @@ do meio (0.**3**.0).
 - **“Abrir cartão” na gaveta de um personagem da fábrica.** Com `HABBLAUD_WORKBOARD_UI_URL` (o endereço da Control UI
   do OpenClaw), o botão abre o cartão no Workboard em outra aba, também no modo portal. A gaveta desses personagens é
   só leitura: sem terminal e sem mensagens.
+- **A fábrica do OpenClaw no Docker.** O `docker-compose.yml` repassa `HABBLAUD_PORTAL` e as variáveis
+  `HABBLAUD_WORKBOARD_*` ao container. Com o Gateway no loopback do host (o padrão dele), o `npm run docker:up` põe o
+  container na rede do host, escutando só em `127.0.0.1`, em vez de pedir que o Gateway escute na rede do Docker, onde
+  ficaria ao alcance de qualquer container, inclusive as sandboxes dos agentes do OpenClaw. Não combina com o acesso
+  remoto: o `docker:up` recusa os dois juntos.
 
 ## [1.0.3] - 2026-10-16
 

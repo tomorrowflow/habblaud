@@ -3356,4 +3356,7 @@ export const FR: Readonly<Record<string, string>> = {
   "HABBLAUD_WORKBOARD_UI_URL não é um endereço válido": "HABBLAUD_WORKBOARD_UI_URL n'est pas une adresse valide",
   "HABBLAUD_WORKBOARD_UI_URL precisa começar com http:// ou https://": "HABBLAUD_WORKBOARD_UI_URL doit commencer par http:// ou https://",
   "HABBLAUD_WORKBOARD_UI_URL deve ter só o endereço da Control UI (sem usuário, senha, parâmetros ou âncora)": "HABBLAUD_WORKBOARD_UI_URL ne doit contenir que l'adresse de la Control UI (sans utilisateur, mot de passe, paramètres ni ancre)",
+  "a fábrica do OpenClaw com o Gateway no loopback põe o container na rede do host, onde o acesso remoto ficaria exposto em toda a rede. Use um ou outro.": "l’usine OpenClaw avec le Gateway en loopback met le conteneur sur le réseau de l’hôte, où l’accès à distance serait exposé à tout le réseau. Utilisez l’un ou l’autre.",
+  "Fábrica do OpenClaw: o Gateway está no loopback do host, então o container usa a rede do host e escuta só em 127.0.0.1:{0}.": "Usine OpenClaw : le Gateway est sur le loopback de l’hôte, donc le conteneur utilise le réseau de l’hôte et n’écoute que sur 127.0.0.1:{0}.",
+  "Habblaud World: desligado (modo portal).": "Habblaud World : désactivé (mode portail).",
 };

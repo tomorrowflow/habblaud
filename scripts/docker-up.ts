@@ -44,7 +44,7 @@ import { describeStateMigration, LEGACY_NAME, legacyEnvWarning, migrateLegacySta
 import { makeClaudeRunner, MIN_CLAUDE_VERSION, readPackageVersion, updateInstalledMods, type ModUpdateResult } from './mod-install';
 import { tr } from '../shared/i18n';
 import { readEnvValue } from '../server/remote/envfile';
-import { parseWorldConfig } from '../server/config';
+import { isLoopbackBind, isTruthy, parseWorldConfig } from '../server/config';
 import { ensureServerCert, remoteTargets, remoteTlsBase, tlsPaths } from '../server/remote/tls';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -316,6 +316,7 @@ export function renderOverride(
   codex: AccountMount[] = [],
   remoteTlsDir?: string,
   extraPorts: string[] = [],
+  hostNetworkPort?: number,
 ): string {
   const env: Array<[string, string]> = [
     ['HABBLAUD_CLAUDE_DIRS', mounts.map((m) => m.mountDir).join(',')],
@@ -324,6 +325,8 @@ export function renderOverride(
   if (codex.length) env.push(['HABBLAUD_CODEX_DIRS', codex.map((m) => m.mountDir).join(',')]);
   if (usageDir) env.push(['HABBLAUD_USAGE_DIR', CONTAINER_USAGE_DIR]);
   if (timeZone) env.push(['TZ', timeZone]);
+  // Na rede do host não há porta publicada: o próprio processo escuta só no loopback, na porta do host.
+  if (hostNetworkPort) env.push(['HABBLAUD_HOST', '127.0.0.1'], ['HABBLAUD_BIND', '127.0.0.1'], ['HABBLAUD_PORT', String(hostNetworkPort)]);
   const lines = [
     `# Gerado por scripts/docker-up.ts em ${generatedAt.toISOString()} — não edite: é recriado a cada \`npm run docker:up\`.`,
     '# Contém caminhos do host e e-mails das contas: fica fora do git e com permissão 600.',
@@ -336,6 +339,14 @@ export function renderOverride(
   ];
   // O Compose junta estas portas às do docker-compose.yml.
   if (extraPorts.length) lines.push('    ports:', ...extraPorts.map((p) => `      - ${yamlString(p)}`));
+  if (hostNetworkPort) {
+    lines.push(
+      '    network_mode: host',
+      '    ports: !reset []',
+      '    healthcheck:',
+      `      test: ["CMD", "node", "-e", ${yamlString(`fetch('http://127.0.0.1:${hostNetworkPort}/api/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))`)}]`,
+    );
+  }
   const binds = [...mounts, ...codex].flatMap((m) => m.binds);
   if (usageDir) binds.push({ source: usageDir, target: CONTAINER_USAGE_DIR });
   // Acesso remoto: SÓ a pasta do certificado do servidor (a chave da CA fica no host).
@@ -460,10 +471,28 @@ export function worldLine(env: NodeJS.ProcessEnv, envFile = ''): string {
     const value = key in env ? env[key] : readEnvValue(envFile, key);
     if (value !== undefined) vars[key] = value;
   }
+  const portal = 'HABBLAUD_PORTAL' in env ? env.HABBLAUD_PORTAL : readEnvValue(envFile, 'HABBLAUD_PORTAL');
+  if (isTruthy(portal)) return tr('Habblaud World: desligado (modo portal).');
   const world = parseWorldConfig(vars, []);
   if (!world.enabled) return tr('Habblaud World: desligado (HABBLAUD_WORLD={0}).', [vars.HABBLAUD_WORLD?.trim() ?? '0']);
   if (world.url) return world.defaultUrl ? tr('Habblaud World: ligado: {0} (padrão)', [world.url]) : tr('Habblaud World: ligado: {0}', [world.url]);
   return tr('Habblaud World: desligado ({0}).', [world.warning ?? tr('HABBLAUD_WORLD_URL recusada')]);
+}
+
+/**
+ * A fábrica do OpenClaw com o Gateway no loopback do host (o padrão dele). Dentro do container, 127.0.0.1 é o próprio
+ * container, e abrir o Gateway na rede do Docker o deixaria ao alcance de qualquer container, inclusive as sandboxes
+ * dos agentes do OpenClaw. Então o container entra na rede do host e escuta só no loopback, como o `npm start`.
+ */
+export function workboardOnHostLoopback(env: NodeJS.ProcessEnv, envFile = ''): boolean {
+  const key = 'HABBLAUD_WORKBOARD_URL';
+  const raw = (key in env ? env[key] : readEnvValue(envFile, key))?.trim();
+  if (!raw) return false;
+  try {
+    return isLoopbackBind(new URL(raw).hostname);
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -712,8 +741,13 @@ async function up(opts: Options, port: number): Promise<void> {
   if (usageDir) say(tr('Uso ao vivo (mod ou tap de statusline): monta {0} em {1}, somente leitura.', [tildify(USAGE_DIR), CONTAINER_USAGE_DIR]));
   const remoteTlsDir = prepareRemoteTls();
   const remotePorts = remoteTlsDir || remoteInsecure() ? remotePortsToPublish() : [];
+  const hostNetwork = workboardOnHostLoopback(process.env, readEnvFile());
+  if (hostNetwork && remotePorts.length) {
+    fail(tr('a fábrica do OpenClaw com o Gateway no loopback põe o container na rede do host, onde o acesso remoto ficaria exposto em toda a rede. Use um ou outro.'));
+  }
+  if (hostNetwork) say(tr('Fábrica do OpenClaw: o Gateway está no loopback do host, então o container usa a rede do host e escuta só em 127.0.0.1:{0}.', [port]));
   const tmp = `${OVERRIDE_FILE}.tmp`;
-  writeFileSync(tmp, renderOverride(mounts, new Date(), usageDir, hostTimeZone(), codexMounts, remoteTlsDir, remotePorts), { mode: 0o600 });
+  writeFileSync(tmp, renderOverride(mounts, new Date(), usageDir, hostTimeZone(), codexMounts, remoteTlsDir, remotePorts, hostNetwork ? port : undefined), { mode: 0o600 });
   chmodSync(tmp, 0o600);
   renameSync(tmp, OVERRIDE_FILE);
   say(tr('docker-compose.override.yml gerado.'));

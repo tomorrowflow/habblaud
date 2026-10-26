@@ -51,6 +51,12 @@ services:
       HABBLAUD_WORLD: ${HABBLAUD_WORLD:-}
       HABBLAUD_WORLD_URL: ${HABBLAUD_WORLD_URL:-}
       HABBLAUD_WORLD_DEV: ${HABBLAUD_WORLD_DEV:-}
+      # Fábrica do OpenClaw (docs/openclaw-workboard.md). Com o Gateway no loopback do host, o docker:up põe o container
+      # na rede do host (ver workboardOnHostLoopback em scripts/docker-up.ts).
+      HABBLAUD_PORTAL: ${HABBLAUD_PORTAL:-}
+      HABBLAUD_WORKBOARD_URL: ${HABBLAUD_WORKBOARD_URL:-}
+      HABBLAUD_WORKBOARD_TOKEN: ${HABBLAUD_WORKBOARD_TOKEN:-}
+      HABBLAUD_WORKBOARD_UI_URL: ${HABBLAUD_WORKBOARD_UI_URL:-}
     # O host visto de dentro do container (servidor do Habblaud World local em teste: HABBLAUD_WORLD_URL=
     # http://host.docker.internal:<porta> com HABBLAUD_WORLD_DEV=1). No Docker Desktop o nome já existe; no Linux,
     # host-gateway o aponta para o host. Inofensivo sem o World.

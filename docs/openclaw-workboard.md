@@ -65,6 +65,13 @@ seguro com o Gateway rodando, e não é ao vivo) e o pacote `@openclaw/gateway-c
   personagem, demo e `/api/world/*` fechados), qualquer que seja o endereço de quem pede: pelo proxy, todo pedido
   chega de `127.0.0.1`, e quem abre o portal é um cliente da rede, não o usuário local e nunca manda `X-Frame-Options`.
   `HABBLAUD_WORLD=0` nessa instância.
+- **Portal com o Habblaud no Docker:** o Gateway escuta só no loopback do host, e o loopback do container é outro. Abrir
+  o Gateway na rede do Docker o deixaria ao alcance de qualquer container, inclusive as sandboxes dos agentes do
+  OpenClaw, e ele não escuta em socket Unix. Então, com `HABBLAUD_WORKBOARD_URL` no loopback, o `npm run docker:up`
+  põe o container na rede do host (`network_mode: host`, sem porta publicada) e o servidor escuta só em `127.0.0.1`.
+  O container perde o isolamento de rede, mas fica igual ao `npm start` nisso e mantém o resto (somente leitura, sem
+  capabilities, usuário `node`, só as pastas das conversas montadas). Como a conexão chega ao Gateway pelo loopback, o
+  pareamento continua aprovado sozinho. O acesso remoto não combina com isso: o `docker:up` recusa os dois juntos.
 - **Estação de trabalho:** a mesma fonte, conectando ao Gateway pela rede (pareamento aprovado à mão uma vez). Os
   agentes da fábrica aparecem no escritório, mas **não sobem para o Habblaud World**: rodam nos nós, não "nesta
   máquina", e os Termos de Uso pedem os dados do escritório real deste computador. O filtro fica em
