@@ -17,6 +17,7 @@ import {
   planUp,
   renderOverride,
   sanitizeCachedUsage,
+  workboardOnHostLoopback,
   worldLine,
   yamlString,
 } from '../../scripts/docker-up';
@@ -140,6 +141,26 @@ describe('docker-up', () => {
     expect(hostTimeZone({ TZ: ':Europe/Lisbon' })).toBe('Europe/Lisbon');
     expect(hostTimeZone({ TZ: 'x"; rm -rf' })).toBeUndefined();
     expect(hostTimeZone({})).toMatch(/^[A-Za-z]/);
+  });
+
+  it('fábrica do OpenClaw: Gateway no loopback do host leva o container à rede do host, escutando só no loopback', () => {
+    expect(workboardOnHostLoopback({ HABBLAUD_WORKBOARD_URL: 'ws://127.0.0.1:18789' })).toBe(true);
+    expect(workboardOnHostLoopback({ HABBLAUD_WORKBOARD_URL: 'ws://[::1]:18789' })).toBe(true);
+    expect(workboardOnHostLoopback({ HABBLAUD_WORKBOARD_URL: 'wss://localhost/' })).toBe(true);
+    expect(workboardOnHostLoopback({}, 'HABBLAUD_WORKBOARD_URL=ws://127.0.0.1:18789\n')).toBe(true);
+    expect(workboardOnHostLoopback({ HABBLAUD_WORKBOARD_URL: '' }, 'HABBLAUD_WORKBOARD_URL=ws://127.0.0.1:18789\n')).toBe(false);
+    expect(workboardOnHostLoopback({ HABBLAUD_WORKBOARD_URL: 'wss://gw.example.ts.net' })).toBe(false);
+    expect(workboardOnHostLoopback({ HABBLAUD_WORKBOARD_URL: 'não é url' })).toBe(false);
+    expect(workboardOnHostLoopback({})).toBe(false);
+
+    const mounts = planMounts(['/Users/fulano/.claude'], [acc('.claude')], slash);
+    const yml = renderOverride(mounts, new Date(0), undefined, undefined, [], undefined, [], 4848);
+    expect(yml).toContain('    network_mode: host\n    ports: !reset []\n');
+    expect(yml).toContain('HABBLAUD_HOST: "127.0.0.1"');
+    expect(yml).toContain('HABBLAUD_BIND: "127.0.0.1"');
+    expect(yml).toContain('HABBLAUD_PORT: "4848"');
+    expect(yml).toContain('http://127.0.0.1:4848/api/health');
+    expect(renderOverride(mounts)).not.toContain('network_mode');
   });
 });
 
