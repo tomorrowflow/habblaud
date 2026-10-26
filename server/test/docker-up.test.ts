@@ -46,6 +46,9 @@ describe('docker-up', () => {
     // O ambiente ganha do .env, até vazio.
     expect(worldLine({ HABBLAUD_WORLD_URL: '' }, file)).toBe('Habblaud World: ligado: https://server.habblaud.com (padrão)');
     expect(worldLine({ HABBLAUD_WORLD: '0' }, file)).toBe('Habblaud World: desligado (HABBLAUD_WORLD=0).');
+    // No modo portal o servidor desliga o World, qualquer que seja a URL.
+    expect(worldLine({ HABBLAUD_PORTAL: '1' })).toBe('Habblaud World: desligado (modo portal).');
+    expect(worldLine({}, 'HABBLAUD_PORTAL=1\n')).toBe('Habblaud World: desligado (modo portal).');
     // Nunca repete a URL crua (pode ter usuário e senha).
     expect(worldLine({ HABBLAUD_WORLD_URL: 'https://ana:segredo@server.habblaud.com' })).not.toContain('segredo');
   });

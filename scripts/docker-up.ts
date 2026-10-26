@@ -44,7 +44,7 @@ import { describeStateMigration, LEGACY_NAME, legacyEnvWarning, migrateLegacySta
 import { makeClaudeRunner, MIN_CLAUDE_VERSION, readPackageVersion, updateInstalledMods, type ModUpdateResult } from './mod-install';
 import { tr } from '../shared/i18n';
 import { readEnvValue } from '../server/remote/envfile';
-import { isLoopbackBind, parseWorldConfig } from '../server/config';
+import { isLoopbackBind, isTruthy, parseWorldConfig } from '../server/config';
 import { ensureServerCert, remoteTargets, remoteTlsBase, tlsPaths } from '../server/remote/tls';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -471,6 +471,8 @@ export function worldLine(env: NodeJS.ProcessEnv, envFile = ''): string {
     const value = key in env ? env[key] : readEnvValue(envFile, key);
     if (value !== undefined) vars[key] = value;
   }
+  const portal = 'HABBLAUD_PORTAL' in env ? env.HABBLAUD_PORTAL : readEnvValue(envFile, 'HABBLAUD_PORTAL');
+  if (isTruthy(portal)) return tr('Habblaud World: desligado (modo portal).');
   const world = parseWorldConfig(vars, []);
   if (!world.enabled) return tr('Habblaud World: desligado (HABBLAUD_WORLD={0}).', [vars.HABBLAUD_WORLD?.trim() ?? '0']);
   if (world.url) return world.defaultUrl ? tr('Habblaud World: ligado: {0} (padrão)', [world.url]) : tr('Habblaud World: ligado: {0}', [world.url]);
